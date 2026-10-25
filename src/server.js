@@ -28,7 +28,7 @@ const mimeTypes = new Map([
 function applySecurityHeaders(response) {
   response.setHeader("x-content-type-options", "nosniff");
   response.setHeader("x-frame-options", "DENY");
-  response.setHeader("referrer-policy", "no-referrer");
+  response.setHeader("referrer-policy", "strict-origin-when-cross-origin");
   response.setHeader(
     "permissions-policy",
     "camera=(), microphone=(), geolocation=(self), payment=()",
@@ -163,7 +163,7 @@ function createSimulator(publish) {
 }
 
 async function serveStatic(requestPath, request, response) {
-  const relativePath = requestPath === "/" ? "index.html" : requestPath.slice(1);
+  const relativePath = requestPath === "/" || requestPath === "/output" ? "index.html" : requestPath.slice(1);
   const resolvedPath = path.resolve(publicDirectory, relativePath);
   const relative = path.relative(publicDirectory, resolvedPath);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
@@ -203,7 +203,7 @@ async function serveStatic(requestPath, request, response) {
       "cache-control": "no-cache",
       "x-content-type-options": "nosniff",
       "content-security-policy":
-        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; frame-src http: https:; connect-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; media-src 'self' https://videos.pexels.com",
+        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; frame-src http: https:; connect-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; media-src 'self' https://videos.pexels.com",
     });
     if (request.method === "HEAD" || file.size === 0) response.end();
     else await pipeline(createReadStream(resolvedPath, { start, end }), response);

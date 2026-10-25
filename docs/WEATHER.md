@@ -3,8 +3,11 @@
 AEROLINK requests Open-Meteo's current model estimate for the latitude and
 longitude selected in Settings. The service chooses a nearby weather grid cell,
 so the result is not an observation at the exact coordinate. Wind and gusts are
-modelled for 10 m above ground. They cannot represent wind at drone altitude,
-near obstacles, or a sudden local gust. The app refreshes every five minutes;
+modelled at 10, 80 and 120 m above ground; gusts are supplied for 10 m only.
+They cannot represent wind at the aircraft's exact position, near obstacles,
+or a sudden local gust. Rain probability is for the next available forecast
+hour and visibility is a model estimate, not a direct visual-line-of-sight
+measurement. The app refreshes every five minutes;
 weather older than 30 minutes produces no assessment.
 Place search uses Open-Meteo's geocoding service, whose location data is based
 on GeoNames. Selecting a place fills its coordinates; a named city is a broad
@@ -13,15 +16,18 @@ location, so enter precise coordinates if the launch site is elsewhere.
 The advisory is an AEROLINK heuristic, not a DJI instruction or clearance:
 
 - Thunderstorm, fog or precipitation: **Do not fly**.
-- Wind or gust at or above the lower of the DJI rating and pilot limit: **Do not fly**.
-- Wind or gust at least 70% of the selected limit: **Caution**.
+- Modelled wind at 10, 80 or 120 m, or surface gust, at or above the lower of the DJI rating and pilot limit: **Do not fly**.
+- Any of those winds at least 70% of the selected limit: **Caution**.
+- Modelled visibility below 1 km: **Do not fly**; below 3 km: **Caution**. These are app thresholds, not legal minima.
+- Next-hour rain probability at least 60%: **Caution**. Current rain remains **Do not fly**.
+- Missing altitude wind, visibility or rain probability: **Caution**.
 - Lito X1 uses DJI's published 10.7 m/s maximum wind resistance.
 - Low light or missing daylight information: **Caution**.
 - Otherwise: **Favourable · Estimate**. This checks only the conditions above.
 
 The 70% threshold is a conservative app choice. Manufacturer maximum wind
 resistance is not an operating target. The app does not assess terrain, nearby
-weather cells, visibility beyond the weather code, battery, airspace, pilot
+weather cells, battery, airspace, pilot
 skill, or aircraft-specific restrictions. Always check on site.
 
 ## Aircraft references

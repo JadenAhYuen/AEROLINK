@@ -5,6 +5,8 @@ $version = (Get-Content (Join-Path $projectRoot 'package.json') -Raw | ConvertFr
 $releaseRoot = Join-Path $projectRoot "dist\AEROLINK-$version-windows-x64"
 $runtime = Join-Path $releaseRoot 'runtime'
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+$icon = Join-Path $projectRoot 'desktop\aerolink.ico'
+if (-not (Test-Path $icon)) { & (Join-Path $PSScriptRoot 'make-launcher-icon.ps1') }
 $mediaRoot = Join-Path $projectRoot '.tools\mediamtx-1.21.2'
 if (-not (Test-Path (Join-Path $mediaRoot 'mediamtx.exe'))) { throw 'Run start.ps1 once to download MediaMTX before building.' }
 New-Item -ItemType Directory -Force -Path $runtime | Out-Null
@@ -22,7 +24,7 @@ Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/nodej
 foreach ($file in @('package.json', 'mediamtx.yml', 'README.md', 'THIRD_PARTY_NOTICES.md')) {
   Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $releaseRoot
 }
-& $compiler /nologo /target:winexe /platform:x64 /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Core.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/out:$releaseRoot\AEROLINK.exe" (Join-Path $projectRoot 'desktop\Launcher.cs')
+& $compiler /nologo /target:winexe /platform:x64 "/win32icon:$icon" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Core.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/out:$releaseRoot\AEROLINK.exe" (Join-Path $projectRoot 'desktop\Launcher.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 $zipPath = "$releaseRoot.zip"
 Compress-Archive -LiteralPath $releaseRoot -DestinationPath $zipPath -Force

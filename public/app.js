@@ -8,6 +8,7 @@ import {
 } from "./preferences.js";
 import { DRONE_PROFILES, droneProfile } from "./drone-profiles.js";
 import { assessWeather, weatherDescription, WEATHER_DISCLAIMER } from "./weather.js";
+import { createLocationMap } from "./location-map.js";
 
 const elementIds = [
   "video-status", "telemetry-status", "video-frame", "video-placeholder", "live-badge",
@@ -20,7 +21,7 @@ const elementIds = [
   "track-panel", "identity-section", "signal-metric", "uas-override-badge", "operator-override-badge",
   "settings-rtmp-url", "settings-copy-url", "settings-stream-key", "settings-new-key", "settings-switch-feed", "settings-viewer-url", "telemetry-panel",
   "placeholder-reel-a", "placeholder-reel-b", "welcome-screen", "skip-welcome", "clean-output-note", "clean-output-url", "clean-output-copy", "clean-output-open", "settings-full-rtmp-url",
-  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-icon", "weather-age", "wind-meter", "wind-marker", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result", "weather-place-query", "weather-place-search", "weather-place-results",
+  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-wind-80", "weather-wind-120", "weather-rain", "weather-visibility", "weather-reason", "weather-icon", "weather-age", "wind-meter", "wind-marker", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result", "weather-place-query", "weather-place-search", "weather-place-results", "weather-map-details", "weather-map", "weather-map-tiles", "weather-map-zoom-in", "weather-map-zoom-out",
 ];
 
 const elements = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
@@ -82,9 +83,9 @@ function panelBounds(name, entry = null) {
   const defaultWidth = compact ? name === "track" ? 240 : 280 : name === "weather" ? 300 : name === "telemetry" ? 350 : 340;
   const width = clamp(entry?.width ?? defaultWidth, Math.min(220, viewportWidth - 16), viewportWidth - 16);
   const trackY = viewportHeight - (compact ? 175 : 275);
-  const initialY = name === "weather" ? top : name === "telemetry" ? top + (state.preferences.weather.enabled ? 202 : 0) : trackY;
+  const initialY = name === "weather" ? top : name === "telemetry" ? top + (state.preferences.weather.enabled ? 258 : 0) : trackY;
   const compactTelemetryHeight = state.preferences.panels.track ? clamp(trackY - initialY - 12, 120, 250) : 250;
-  const defaultHeight = name === "weather" ? 190 : name === "telemetry" ? compact ? compactTelemetryHeight : 480 : compact ? 165 : 255;
+  const defaultHeight = name === "weather" ? 244 : name === "telemetry" ? compact ? compactTelemetryHeight : 480 : compact ? 165 : 255;
   const y = clamp(entry?.y ?? initialY, 8, Math.max(8, viewportHeight - minimumHeight - 8));
   const height = clamp(entry?.height ?? defaultHeight, minimumHeight, Math.max(minimumHeight, viewportHeight - y - 8));
   const x = clamp(entry?.x ?? (name === "track" ? margin : viewportWidth - width - margin), 8, viewportWidth - width - 8);
@@ -196,11 +197,16 @@ function renderWeather() {
   panel.dataset.level = level;
   elements["weather-status"].textContent = { favourable: "LOW RISK*", caution: "CAUTION", "no-go": "DO NOT FLY", unknown: key ? state.weatherError || "NO DATA" : "SET LOCATION" }[level];
   elements["weather-condition"].textContent = data ? weatherDescription(data.weatherCode) : key ? "Weather unavailable" : "Set location";
+  elements["weather-reason"].textContent = assessment?.reason ?? (key ? "Weather unavailable. Check Settings." : "Choose a weather location in Settings.");
   elements["weather-icon"].textContent = data ? weatherIcon(data.weatherCode) : "◌";
   elements["weather-wind"].textContent = windDisplay(data?.windMps);
   elements["weather-gust"].textContent = windDisplay(data?.gustMps);
+  elements["weather-wind-80"].textContent = windDisplay(data?.wind80Mps);
+  elements["weather-wind-120"].textContent = windDisplay(data?.wind120Mps);
+  elements["weather-rain"].textContent = Number.isFinite(data?.rainProbabilityPct) ? `${data.rainProbabilityPct}%` : "—";
+  elements["weather-visibility"].textContent = Number.isFinite(data?.visibilityM) ? `${(data.visibilityM / 1000).toFixed(1)} km` : "—";
   const limit = assessment?.limitMps ?? profile.maxWindMps;
-  const ratio = data && Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.max(0, Math.max(data.windMps, data.gustMps) / limit * 100)) : null;
+  const ratio = data && Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.max(0, Math.max(data.windMps, data.gustMps, ...[data.wind80Mps, data.wind120Mps].filter(Number.isFinite)) / limit * 100)) : null;
   elements["wind-meter"].classList.toggle("empty", ratio === null || level === "unknown");
   elements["wind-meter"].setAttribute("aria-valuenow", ratio === null || level === "unknown" ? "0" : String(Math.round(ratio)));
   elements["wind-meter"].setAttribute("aria-valuetext", ratio === null || level === "unknown" ? "No current wind assessment" : `Peak wind ${Math.round(ratio)}% of ${windDisplay(limit)} limit`);
@@ -240,7 +246,7 @@ async function refreshWeather({ force = false, coordinates = null } = {}) {
 }
 
 function cleanOutputEnabled() {
-  return new URLSearchParams(window.location.search).get("output") === "clean";
+  return window.location.pathname === "/output" || new URLSearchParams(window.location.search).get("output") === "clean";
 }
 
 function setVideoSource(video, source) {
@@ -392,6 +398,7 @@ function applyPreferences(preferences, { renderData = true } = {}) {
   elements["track-panel"].classList.toggle("preference-hidden", !normalized.panels.track);
   elements["telemetry-panel"]?.classList.toggle("preference-hidden", !normalized.panels.overlay);
   state.preferences = normalized;
+  document.documentElement.classList.toggle("weather-split", normalized.weather.enabled && normalized.weather.display === "split" && !cleanOutputEnabled());
   renderWeather();
   applyOverlayLayout();
   elements["identity-section"].classList.toggle("preference-hidden", !normalized.panels.identity);
@@ -597,6 +604,7 @@ function fillSettings(preferences) {
   form.elements.namedItem("operatorId").value = normalized.operatorId;
   form.elements.namedItem("droneModel").value = normalized.droneModel;
   form.elements.namedItem("weatherEnabled").checked = normalized.weather.enabled;
+  form.elements.namedItem("weatherDisplay").value = normalized.weather.display;
   form.elements.namedItem("weatherLatitude").value = normalized.weather.latitude ?? "";
   form.elements.namedItem("weatherLongitude").value = normalized.weather.longitude ?? "";
   form.elements.namedItem("pilotLimitMps").value = normalized.weather.pilotLimitMps ?? "";
@@ -617,9 +625,8 @@ function fillSettings(preferences) {
 }
 
 function updateCleanOutputLink(enabled) {
-  const cleanUrl = new URL(window.location.href);
+  const cleanUrl = new URL("/output", window.location.origin);
   cleanUrl.searchParams.set("stream", settingsStreamKey());
-  cleanUrl.searchParams.set("output", "clean");
   elements["clean-output-url"].textContent = cleanUrl.toString();
   elements["clean-output-open"].href = cleanUrl.toString();
   elements["clean-output-note"].hidden = !enabled;
@@ -639,6 +646,7 @@ function updateConnectionLinks() {
   const viewerUrl = new URL(window.location.href);
   viewerUrl.searchParams.set("stream", key);
   viewerUrl.searchParams.delete("output");
+  viewerUrl.pathname = "/";
   elements["settings-viewer-url"].textContent = viewerUrl.toString();
   updateCleanOutputLink(elements["settings-form"].elements.namedItem("rawOutput").checked);
 }
@@ -656,6 +664,7 @@ function preferencesFromForm() {
     overlayLayout: state.savedPreferences.overlayLayout,
     weather: {
       enabled: form.elements.namedItem("weatherEnabled").checked,
+      display: form.elements.namedItem("weatherDisplay").value,
       latitude: form.elements.namedItem("weatherLatitude").value,
       longitude: form.elements.namedItem("weatherLongitude").value,
       pilotLimitMps: form.elements.namedItem("pilotLimitMps").value,
@@ -743,6 +752,25 @@ async function initialize() {
 }
 
 elements["drone-model"].addEventListener("change", updateWeatherModelNote);
+const locationMap = createLocationMap({
+  element: elements["weather-map"], tiles: elements["weather-map-tiles"],
+  onSelect: ({ latitude, longitude }) => {
+    const form = elements["settings-form"];
+    form.elements.namedItem("weatherLatitude").value = latitude.toFixed(6);
+    form.elements.namedItem("weatherLongitude").value = longitude.toFixed(6);
+    elements["weather-settings-result"].textContent = "Map location selected and saved.";
+    scheduleSettingsSave();
+  },
+});
+function syncLocationMap() {
+  const form = elements["settings-form"];
+  const latitude = Number(form.elements.namedItem("weatherLatitude").value);
+  const longitude = Number(form.elements.namedItem("weatherLongitude").value);
+  if (form.elements.namedItem("weatherLatitude").value !== "" && form.elements.namedItem("weatherLongitude").value !== "") locationMap.setCenter(latitude, longitude);
+}
+elements["weather-map-details"].addEventListener("toggle", () => { if (elements["weather-map-details"].open) { syncLocationMap(); locationMap.open(); } });
+elements["weather-map-zoom-in"].addEventListener("click", () => locationMap.setZoom(1));
+elements["weather-map-zoom-out"].addEventListener("click", () => locationMap.setZoom(-1));
 elements["weather-place-search"].addEventListener("click", async () => {
   const query = elements["weather-place-query"].value.trim();
   const results = elements["weather-place-results"];
@@ -764,6 +792,7 @@ elements["weather-place-search"].addEventListener("click", async () => {
         const form = elements["settings-form"];
         form.elements.namedItem("weatherLatitude").value = place.latitude;
         form.elements.namedItem("weatherLongitude").value = place.longitude;
+        locationMap.setCenter(place.latitude, place.longitude);
         elements["weather-settings-result"].textContent = `${button.textContent} selected and saved. Weather will refresh if the overlay is enabled.`;
         results.replaceChildren();
         scheduleSettingsSave();
@@ -782,6 +811,7 @@ elements["weather-use-location"].addEventListener("click", () => {
   navigator.geolocation.getCurrentPosition((position) => {
     elements["settings-form"].elements.namedItem("weatherLatitude").value = position.coords.latitude.toFixed(6);
     elements["settings-form"].elements.namedItem("weatherLongitude").value = position.coords.longitude.toFixed(6);
+    locationMap.setCenter(position.coords.latitude, position.coords.longitude);
     status.textContent = "Location selected and saved.";
     scheduleSettingsSave();
   }, () => { status.textContent = "Device location unavailable here. Enter coordinates manually."; }, { enableHighAccuracy: true, timeout: 10_000 });

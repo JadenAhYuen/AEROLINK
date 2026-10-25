@@ -26,10 +26,14 @@ export function assessWeather(weather, modelId, pilotLimitMps = null, now = Date
   const pilot = typeof pilotLimitMps === "number" && Number.isFinite(pilotLimitMps) && pilotLimitMps > 0 ? pilotLimitMps : null;
   const limit = profile.maxWindMps === null ? pilot : Math.min(profile.maxWindMps, pilot ?? Infinity);
   if (limit === null) return unknown("Aircraft wind rating is unverified. Set a conservative pilot limit in Settings.");
-  const peak = Math.max(weather.windMps, weather.gustMps);
+  const peak = Math.max(weather.windMps, weather.gustMps, ...[weather.wind80Mps, weather.wind120Mps].filter(Number.isFinite));
   if (peak >= limit) return { level: "no-go", label: "Do not fly · Wind", reason: "Wind or gusts reach the selected wind limit.", limitMps: limit };
   if (peak >= limit * 0.7) return { level: "caution", label: "Caution · Wind", reason: "Wind or gusts are within 30% of the selected limit.", limitMps: limit };
+  if (weather.visibilityM !== null && weather.visibilityM !== undefined && weather.visibilityM < 1000) return { level: "no-go", label: "Do not fly · Visibility", reason: "Modelled visibility is below 1 km. Confirm visual line of sight on site.", limitMps: limit };
+  if (weather.visibilityM !== null && weather.visibilityM !== undefined && weather.visibilityM < 3000) return { level: "caution", label: "Caution · Visibility", reason: "Modelled visibility is below 3 km. Confirm visual line of sight on site.", limitMps: limit };
+  if (Number.isFinite(weather.rainProbabilityPct) && weather.rainProbabilityPct >= 60) return { level: "caution", label: "Caution · Rain risk", reason: "Rain is likely during the coming hour. Check local conditions and forecast trend.", limitMps: limit };
+  if (![weather.wind80Mps, weather.wind120Mps, weather.visibilityM, weather.rainProbabilityPct].every(Number.isFinite)) return { level: "caution", label: "Caution · Incomplete forecast", reason: "Some altitude wind, rain or visibility data is unavailable. Confirm conditions on site.", limitMps: limit };
   if (profile.maxWindMps === null) return { level: "caution", label: "Caution · Pilot limit", reason: "Below your pilot limit, but the aircraft rating is unverified.", limitMps: limit };
   if (weather.isDay !== true) return { level: "caution", label: "Caution · Low light", reason: "Night or daylight information unavailable. Check visibility and aircraft requirements.", limitMps: limit };
-  return { level: "favourable", label: "Favourable · Estimate", reason: "Dry conditions; modelled wind and gusts are below 70% of the selected limit. Other flight risks are not assessed.", limitMps: limit };
+  return { level: "favourable", label: "Favourable · Estimate", reason: "Dry conditions; modelled wind at 10, 80 and 120 m and surface gusts are below 70% of the selected limit. Other flight risks are not assessed.", limitMps: limit };
 }

@@ -18,7 +18,7 @@ namespace Aerolink {
     private Process gateway, dashboard;
     private bool busy;
     private bool smokeTest;
-    private const string CurrentVersion = "0.5.1";
+    private const string CurrentVersion = "0.6.0";
     private string updateVersion, updateZipUrl, updateHashUrl;
     private string address;
     private Label status, detail;
@@ -53,17 +53,25 @@ namespace Aerolink {
     }
 
     public Launcher() {
-      Text = "AEROLINK"; ClientSize = new Size(520, 350);
+      Text = "AEROLINK"; ClientSize = new Size(540, 368);
+      try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
       FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false;
       StartPosition = FormStartPosition.CenterScreen;
-      BackColor = Color.FromArgb(245, 248, 252); Font = new Font("Segoe UI", 10);
-      Controls.Add(new Label { Text = "AEROLINK", Location = new Point(28, 22), Size = new Size(450, 38), Font = new Font("Segoe UI", 23, FontStyle.Bold) });
-      status = new Label { Text = "Starting your flight viewer...", Location = new Point(30, 78), Size = new Size(450, 27), Font = new Font("Segoe UI", 12, FontStyle.Bold) };
-      detail = new Label { Location = new Point(30, 114), Size = new Size(450, 92), Text = "Please keep this window open while using the viewer." };
+      BackColor = Color.FromArgb(244, 247, 249); Font = new Font("Segoe UI", 10);
+      var masthead = new Panel { Location = new Point(0, 0), Size = new Size(540, 86), BackColor = Color.FromArgb(14, 28, 38) };
+      var mark = new PictureBox { Location = new Point(28, 20), Size = new Size(46, 46), SizeMode = PictureBoxSizeMode.StretchImage, BackColor = Color.Transparent };
+      try { mark.Image = Icon.ToBitmap(); } catch { }
+      masthead.Controls.Add(mark);
+      masthead.Controls.Add(new Label { Text = "AEROLINK", ForeColor = Color.White, Location = new Point(88, 17), Size = new Size(320, 31), Font = new Font("Segoe UI", 19, FontStyle.Bold) });
+      masthead.Controls.Add(new Label { Text = "DJI FLIGHT VIEWER  /  LOCAL GROUND STATION", ForeColor = Color.FromArgb(166, 198, 220), Location = new Point(89, 51), Size = new Size(410, 19), Font = new Font("Segoe UI", 8, FontStyle.Bold) });
+      Controls.Add(masthead);
+      status = new Label { Text = "Starting your flight viewer...", Location = new Point(30, 110), Size = new Size(480, 27), ForeColor = Color.FromArgb(21, 44, 58), Font = new Font("Segoe UI", 12, FontStyle.Bold) };
+      detail = new Label { Location = new Point(30, 151), Size = new Size(480, 90), ForeColor = Color.FromArgb(78, 96, 104), Text = "Please keep this window open while using the viewer." };
       open = Button("Open viewer", 30, delegate { OpenViewer(); });
-      retry = Button("Retry", 192, async delegate { await StartServices(); });
-      stop = Button("Stop", 354, delegate { StopServices(); status.Text = "Viewer stopped"; detail.Text = "Choose Retry to start again."; });
-      update = new Button { Text = "Check for updates", Location = new Point(30, 277), Size = new Size(462, 38), FlatStyle = FlatStyle.System };
+      retry = Button("Retry", 200, async delegate { await StartServices(); });
+      stop = Button("Stop", 370, delegate { StopServices(); status.Text = "Viewer stopped"; detail.Text = "Choose Retry to start again."; });
+      update = new Button { Text = "Check for updates", Location = new Point(30, 310), Size = new Size(480, 38), FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Color.FromArgb(23, 72, 105) };
+      update.FlatAppearance.BorderColor = Color.FromArgb(211, 222, 228);
       update.Click += async delegate { if (updateZipUrl == null) await CheckForUpdates(true); else await InstallUpdate(); };
       Controls.AddRange(new Control[] { status, detail, open, retry, stop, update });
       open.Enabled = false;
@@ -88,7 +96,11 @@ namespace Aerolink {
     }
 
     private Button Button(string text, int x, EventHandler handler) {
-      var button = new Button { Text = text, Location = new Point(x, 225), Size = new Size(138, 42), FlatStyle = FlatStyle.System };
+      var primary = text == "Open viewer";
+      var button = new Button { Text = text, Location = new Point(x, 255), Size = new Size(primary ? 160 : 140, 42), FlatStyle = FlatStyle.Flat,
+        BackColor = primary ? Color.FromArgb(23, 103, 179) : Color.White,
+        ForeColor = primary ? Color.White : Color.FromArgb(35, 71, 92), Font = new Font("Segoe UI", 10, FontStyle.Bold) };
+      button.FlatAppearance.BorderColor = primary ? Color.FromArgb(23, 103, 179) : Color.FromArgb(211, 222, 228);
       button.Click += handler; return button;
     }
     private WebClient GithubClient() {
@@ -172,8 +184,7 @@ namespace Aerolink {
         var ip = properties.UnicastAddresses.FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork && !a.Address.ToString().StartsWith("169.254."));
         if (ip != null) return ip.Address.ToString();
       }
-      if (smokeTest) return "127.0.0.1";
-      throw new Exception("Connect this laptop to Wi-Fi or Ethernet, then choose Retry.");
+      return "127.0.0.1";
     }
     private bool PortInUse(int port) {
       return IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(p => p.Port == port);
@@ -217,7 +228,7 @@ namespace Aerolink {
         }
         if (!ready) throw new Exception("Startup took too long. Check the logs folder, then choose Retry.");
         status.Text = "Ready for your aircraft";
-        detail.Text = "On this laptop or a tablet:\nhttp://" + address + ":3000\n\nKeep this window open. Closing it stops the viewer.";
+        detail.Text = "This laptop: http://localhost:3000\n" + (address == "127.0.0.1" ? "Connect to Wi-Fi for a tablet link." : "Tablet on the same network: http://" + address + ":3000") + "\n\nKeep this window open while using the viewer.";
         open.Enabled = true; monitor.Start(); if (!smokeTest) OpenViewer();
       } catch (Exception error) {
         StopServices(); status.Text = "Unable to start"; detail.Text = error.Message;
@@ -225,8 +236,8 @@ namespace Aerolink {
     }
     private void OpenViewer() {
       if (String.IsNullOrEmpty(address) || !open.Enabled) return;
-      try { Process.Start(new ProcessStartInfo("http://" + address + ":3000") { UseShellExecute = true }); }
-      catch { detail.Text = "Open http://" + address + ":3000 in your browser."; }
+      try { Process.Start(new ProcessStartInfo("http://localhost:3000") { UseShellExecute = true }); }
+      catch { detail.Text = "Open http://localhost:3000 in your browser."; }
     }
     private void StopServices() {
       monitor.Stop(); open.Enabled = false;

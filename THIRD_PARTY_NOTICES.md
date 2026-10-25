@@ -28,3 +28,7 @@ under its [API terms](https://open-meteo.com/en/terms). The public API is for
 noncommercial use. Place search uses [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api),
 which is based on [GeoNames](https://www.geonames.org/). AEROLINK attributes
 Open-Meteo in Settings.
+
+The optional location picker displays [OpenStreetMap](https://www.openstreetmap.org/copyright)
+tiles with on-map attribution to OpenStreetMap contributors. Tiles are requested
+only after the map is opened.

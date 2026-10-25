@@ -1,4 +1,17 @@
-# AEROLINK 0.5.1
+# AEROLINK 0.6.0
+
+- DJI-focused setup guidance and a branded Windows launcher icon and masthead.
+- The launcher opens `http://localhost:3000` on the laptop for browser device location.
+  Tablets use the LAN address, with place search and a map picker available.
+- A dedicated `/output?stream=<key>` browser-source page keeps the waiting picture
+  and shows the live WebRTC video without controls. Verified with an RTMP test feed.
+- Flight weather now includes modelled wind at 80 and 120 m, rain probability,
+  and visibility. Missing forecast fields produce caution; choose a compact overlay
+  or a side-by-side briefing. Weather remains advisory and refreshes every five minutes.
+- USB connection to a DJI RC 2 does not currently supply live telemetry to AEROLINK.
+  The telemetry overlay still requires an external decoded receiver bridge.
+
+## Previous release: 0.5.1
 
 Windows portable distribution: extract the complete ZIP, then open AEROLINK.exe.
 Keep the launcher open during use; closing it stops the services it started.

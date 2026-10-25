@@ -10,7 +10,7 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   uasId: "",
   operatorId: "",
   droneModel: "none",
-  weather: Object.freeze({ enabled: false, latitude: null, longitude: null, pilotLimitMps: null }),
+  weather: Object.freeze({ enabled: false, display: "overlay", latitude: null, longitude: null, pilotLimitMps: null }),
   overlayLayout: Object.freeze({ weather: null, telemetry: null, track: null }),
   panels: Object.freeze({
     track: false,
@@ -73,6 +73,7 @@ export function normalizePreferences(input = {}) {
     droneModel: droneProfile(source.droneModel).id,
     weather: {
       enabled: panelChoice(weather.enabled, false),
+      display: weather.display === "split" ? "split" : "overlay",
       latitude: boundedNumber(weather.latitude, -90, 90),
       longitude: boundedNumber(weather.longitude, -180, 180),
       pilotLimitMps: boundedNumber(weather.pilotLimitMps, 0.5, 20),

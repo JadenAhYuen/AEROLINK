@@ -261,6 +261,9 @@ test("static dashboard is served and unknown files return 404", async () => {
     const dashboard = await fetch(baseUrl);
     assert.equal(dashboard.status, 200);
     assert.match(await dashboard.text(), /AEROLINK Flight Viewer/);
+    const clean = await fetch(`${baseUrl}/output?stream=x`);
+    assert.equal(clean.status, 200);
+    assert.match(await clean.text(), /AEROLINK Flight Viewer/);
 
     const missing = await fetch(`${baseUrl}/does-not-exist.css`);
     assert.equal(missing.status, 404);

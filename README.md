@@ -2,7 +2,7 @@
 
 <img src="public/assets/aerolink-mark.svg" width="72" alt="AEROLINK logo">
 
-**A quiet, local RTMP flight viewer for compatible cameras and controllers.**
+**A local flight viewer built for DJI pilots using compatible DJI Fly RTMP streaming.**
 
 [Download for Windows](https://github.com/JadenAhYuen/AEROLINK/releases/latest)
 · [Build status](https://github.com/JadenAhYuen/AEROLINK/actions/workflows/release.yml)
@@ -24,7 +24,7 @@ or resize it from its lower corner. Its layout saves separately for each feed.
 
 ## What it does
 
-- Ingests RTMP from a compatible RTMP/H.264 publisher.
+- Ingests RTMP from DJI Fly on compatible DJI aircraft and controllers, or another RTMP/H.264 publisher.
 - Plays the stream in the browser through MediaMTX WebRTC.
 - Uses separate, generated stream keys for multiple aircraft.
 - Keeps an RTMP server link, stream key, and complete address clearly separated in Settings.
@@ -32,21 +32,20 @@ or resize it from its lower corner. Its layout saves separately for each feed.
 - Presents a polished waiting state until a live feed is available.
 - Offers telemetry and a home-relative track as an **in-development** feature,
   with an optional simulated preview in Settings.
-- Shows optional wind, gusts and conditions for chosen coordinates, with a
+- Shows optional wind at 10, 80 and 120 m, surface gusts, rain chance, visibility and conditions for chosen coordinates, with a
   model-specific flight weather estimate independent of telemetry.
 
 ## Flight weather
 
-In **Settings → Flight weather**, select your aircraft model and search for a city or
-postal code. Select a result and turn on **Weather overlay**. Changes save as you make them.
-You can also use device location where the browser permits it or enter exact
-coordinates. Each feed saves its own location and model. The compact panel
-shows conditions, wind, gusts, a graded wind-limit scale and the last update
-time. It refreshes every five minutes while enabled.
+In **Settings → Flight weather**, select your DJI model and search for a place,
+pick a point on the map, or use device location. Turn on **Weather overlay** and
+choose a compact overlay or a side-by-side briefing. Changes save as you make them.
+Each feed saves its own location and model. Conditions refresh every five minutes
+while enabled.
 
 The estimate uses Open-Meteo's modelled conditions near the requested point,
-including wind and gusts at **10 m**. It is not a measurement at the aircraft or
-at its flight altitude. For listed DJI models, the result combines weather with
+including wind at **10, 80 and 120 m**, surface gusts, next-hour rain probability
+and visibility. These are forecasts, not measurements at the aircraft. For listed DJI models, the result combines weather with
 the published maximum wind resistance and an optional lower pilot limit. For
 other aircraft, choose **Other aircraft** and enter a conservative pilot limit.
 A favourable result is not a flight clearance. Wind can change at any
@@ -73,8 +72,11 @@ To run from source, install Node.js 22+ and use:
 .\start.ps1
 ```
 
-The launcher starts the local dashboard and MediaMTX, then prints the laptop
-address. Allow Node.js and MediaMTX through Windows Firewall on your **private**
+The launcher starts the local dashboard and MediaMTX. On the laptop it opens
+`http://localhost:3000`, which permits the browser to request device location.
+The LAN link shown in the launcher is for tablets; browser GPS on that plain HTTP
+link needs a trusted HTTPS setup, so use place search or the map picker there.
+Allow Node.js and MediaMTX through Windows Firewall on your **private**
 network when prompted.
 
 Open the dashboard at `http://<laptop-ip>:3000`.
@@ -105,7 +107,7 @@ http://<laptop-ip>:3000/api/telemetry?stream=<stream-key>
 
 ## Clean output
 
-Enable **Clean streaming output** in Settings to obtain a browser-source URL for
+Enable **Clean streaming output** in Settings to obtain a dedicated `/output?stream=<key>` browser-source URL for
 OBS or vMix. Choose **Copy link** or **Open output**; the main viewer stays available.
 The output excludes AEROLINK controls and telemetry while preserving the
 waiting state, so a program feed never goes blank before the drone connects.
@@ -120,6 +122,9 @@ observations, but this app has no built-in radio receiver or receiver bridge.
 Entering a real UAS ID or operator ID changes a display label; it cannot retrieve
 telemetry. RTMP is the video feed. A compatible external receiver and bridge are
 needed for telemetry, and that aircraft integration has not been flight-tested.
+Connecting a DJI RC 2 to the laptop by USB does not currently provide AEROLINK
+with live telemetry; DJI does not document a general Windows USB telemetry feed
+for this controller.
 See [Remote ID integration](docs/REMOTE_ID.md).
 
 To test a camera feed with FFmpeg:

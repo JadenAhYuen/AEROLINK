@@ -36,7 +36,7 @@ test("weather assessment considers gusts, precipitation, low light, freshness an
 
 test("weather settings validate coordinates and model", () => {
   assert.deepEqual(normalizePreferences({ droneModel: "neo", weather: { enabled: true, latitude: 0, longitude: 0, pilotLimitMps: 6 } }).weather,
-    { enabled: true, display: "overlay", latitude: 0, longitude: 0, pilotLimitMps: 6 });
+    { enabled: true, display: "overlay", latitude: 0, longitude: 0, pilotLimitMps: 6, alerts: { enabled: true, windMps: null, gustMps: null, rainProbabilityPct: null, minimumVisibilityKm: null } });
   assert.equal(normalizePreferences({ droneModel: "unknown", weather: { latitude: 100 } }).droneModel, "none");
   assert.equal(normalizePreferences({ weather: { latitude: 100 } }).weather.latitude, null);
   assert.throws(() => parseCoordinates("", "0"));
@@ -51,7 +51,10 @@ test("weather service fixes provider, units, validates data and caches a locatio
     assert.equal(url.hostname, "api.open-meteo.com");
     assert.equal(url.searchParams.get("wind_speed_unit"), "ms");
     assert.match(url.searchParams.get("current"), /wind_speed_120m/);
-    assert.equal(url.searchParams.get("hourly"), "precipitation_probability");
+    const hourlyFields = url.searchParams.get("hourly").split(",");
+    assert.ok(hourlyFields.includes("precipitation_probability"));
+    assert.ok(hourlyFields.includes("wind_speed_120m"));
+    assert.ok(hourlyFields.includes("visibility"));
     assert.equal(url.searchParams.get("latitude"), "52.52");
     return { ok: true, json: async () => ({ latitude: 52.5, longitude: 13.4,
       current_units: { wind_speed_10m: "m/s", wind_speed_80m: "m/s", wind_speed_120m: "m/s", wind_gusts_10m: "m/s", visibility: "m", cloud_cover: "%", precipitation: "mm", temperature_2m: "°C" },

@@ -10,9 +10,9 @@ const unproject = (x, y, zoom) => {
   return { latitude: Math.atan(Math.sinh(Math.PI * (1 - 2 * y / scale))) * 180 / Math.PI, longitude: ((x / scale * 360) % 360 + 360) % 360 - 180 };
 };
 
-export function createLocationMap({ element, tiles, onSelect }) {
+export function createLocationMap({ element, tiles, onSelect = null, interactive = true, initialZoom = 2 }) {
   let center = { latitude: 20, longitude: 0 };
-  let zoom = 2;
+  let zoom = initialZoom;
   let active = false;
   let drag = null;
   function render() {
@@ -44,12 +44,12 @@ export function createLocationMap({ element, tiles, onSelect }) {
     render();
   }
   function setZoom(next) { zoom = clamp(next, 2, 16); render(); }
-  element.addEventListener("pointerdown", (event) => {
+  if (interactive) element.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || event.target.closest("button,a")) return;
     drag = { x: event.clientX, y: event.clientY, center: project(center.latitude, center.longitude, zoom), moved: false };
     element.setPointerCapture(event.pointerId);
   });
-  element.addEventListener("pointermove", (event) => {
+  if (interactive) element.addEventListener("pointermove", (event) => {
     if (!drag) return;
     const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
@@ -57,21 +57,23 @@ export function createLocationMap({ element, tiles, onSelect }) {
     center = unproject(drag.center.x - dx, drag.center.y - dy, zoom);
     render();
   });
-  element.addEventListener("pointerup", (event) => {
+  if (interactive) element.addEventListener("pointerup", (event) => {
     if (!drag) return;
     const moved = drag.moved;
     drag = null;
     if (!moved) {
       const rect = element.getBoundingClientRect(), point = project(center.latitude, center.longitude, zoom);
       center = unproject(point.x + event.clientX - rect.left - rect.width / 2, point.y + event.clientY - rect.top - rect.height / 2, zoom);
-      onSelect(center);
+      onSelect?.(center);
       render();
     }
   });
-  element.addEventListener("pointercancel", () => { drag = null; });
-  element.addEventListener("keydown", (event) => {
+  if (interactive) element.addEventListener("pointercancel", () => { drag = null; });
+  if (interactive) element.addEventListener("keydown", (event) => {
     if (event.target !== element) return;
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(center); }
   });
+  const resizeObserver = new ResizeObserver(() => render());
+  resizeObserver.observe(element);
   return { open() { active = true; render(); }, setCenter, setZoom: (delta) => setZoom(zoom + delta), render };
 }

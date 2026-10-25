@@ -409,7 +409,7 @@ export function createDashboardServer(options = {}) {
           return;
         }
         if (!mediaMtxApiUrl) {
-          sendJson(response, 200, { live: false, reason: "media-server-disabled" });
+          sendJson(response, 200, { live: false, serverReachable: false, reason: "media-server-disabled" });
           return;
         }
 
@@ -418,16 +418,18 @@ export function createDashboardServer(options = {}) {
             signal: AbortSignal.timeout(1000),
           });
           if (!mediaResponse.ok) {
-            sendJson(response, 200, { live: false, reason: "stream-not-published" });
+            sendJson(response, 200, { live: false, serverReachable: true, reason: "stream-not-published", bytesReceived: null });
             return;
           }
           const mediaPath = await mediaResponse.json();
           sendJson(response, 200, {
             live: mediaPath.ready === true,
+            serverReachable: true,
+            reason: mediaPath.ready === true ? null : "stream-not-published",
             bytesReceived: mediaPath.bytesReceived ?? null,
           });
         } catch {
-          sendJson(response, 200, { live: false, reason: "media-server-unavailable" });
+          sendJson(response, 200, { live: false, serverReachable: false, reason: "media-server-unavailable" });
         }
         return;
       }

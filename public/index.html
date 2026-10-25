@@ -54,10 +54,13 @@
               <div class="placeholder-copy">
                 <div class="reticle" aria-hidden="true"><span></span></div>
                 <strong>Ready for your stream</strong>
-                <p>Open Settings for the three quick connection steps.</p>
+                <p>Open Settings for the step-by-step stream setup.</p>
               </div>
             </div>
-            <div class="live-badge" id="live-badge"><i></i> LIVE</div>
+            <div class="live-badge" id="live-badge"><i></i> <span id="live-badge-label">LIVE</span></div>
+            <div class="stream-health" id="stream-health" data-state="checking" role="status" aria-live="polite">
+              <i aria-hidden="true"></i><span><strong id="stream-health-label">Checking connection</strong><small id="stream-health-detail">Contacting stream server</small></span>
+            </div>
           </div>
 
           <div class="stream-instruction">
@@ -71,6 +74,11 @@
         <div class="flight-overlays">
         <section class="panel weather-panel preference-hidden" id="weather-panel" aria-labelledby="weather-title">
           <div class="weather-head" data-overlay-handle="weather" role="button" tabindex="0" aria-label="Move weather overlay with arrow keys"><div><p class="section-kicker">FLIGHT WEATHER</p><h2 id="weather-title"><span id="weather-icon" aria-hidden="true">◌</span><span id="weather-condition">Set location</span></h2></div><span class="weather-status" id="weather-status">NO DATA</span></div>
+          <div class="weather-alert" id="weather-alert" data-level="clear" hidden role="status" aria-live="polite"><i aria-hidden="true">!</i><span><strong id="weather-alert-title">Weather alert</strong><small id="weather-alert-detail"></small></span></div>
+          <section class="briefing-map-region" id="briefing-map-region" aria-label="Selected weather point and wind direction" hidden>
+            <div class="briefing-map" id="briefing-map"><div class="briefing-map-tiles" id="briefing-map-tiles"></div><span class="briefing-map-pin" aria-hidden="true"><i id="briefing-map-wind-arrow">↑</i><b>⌖</b></span><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="weather-map-credit">© OpenStreetMap contributors</a></div>
+            <div class="briefing-map-caption"><span id="briefing-coordinate">Launch point</span><span class="briefing-wind"><i id="briefing-wind-arrow" aria-hidden="true">↑</i><span id="briefing-wind-copy">Wind unavailable</span></span><span class="briefing-freshness" id="weather-freshness">Forecast waiting</span></div>
+          </section>
           <div class="weather-winds"><div><span aria-hidden="true">≋</span><span class="weather-wind-label">WIND</span><strong id="weather-wind">—</strong></div><div><span aria-hidden="true">↝</span><span class="weather-wind-label">GUST</span><strong id="weather-gust">—</strong></div></div>
           <div class="weather-factors" aria-label="Flight weather factors"><div title="Modelled wind at 80 metres"><span>↗ 80 m</span><strong id="weather-wind-80">—</strong></div><div title="Modelled wind at 120 metres"><span>↗ 120 m</span><strong id="weather-wind-120">—</strong></div><div title="Probability of rain in the next forecast hour"><span>☂ Rain</span><strong id="weather-rain">—</strong></div><div title="Modelled horizontal visibility"><span>◉ View</span><strong id="weather-visibility">—</strong></div></div>
           <div class="weather-expanded" aria-label="Additional weather details"><div><span>↗ DIRECTION</span><strong id="weather-direction">—</strong></div><div><span>° TEMPERATURE</span><strong id="weather-temperature">—</strong></div><div><span>☁ CLOUD</span><strong id="weather-cloud">—</strong></div></div>
@@ -82,7 +90,12 @@
             <div class="weather-wind-chart" id="weather-wind-chart"></div>
           </section>
           <section class="weather-outlook" aria-label="Planning cues">
-            <div class="weather-section-heading"><div><span>FLIGHT WINDOW</span><strong>Conditions ahead</strong></div><small>Today</small></div>
+            <div class="weather-section-heading"><div><span>FLIGHT WINDOW</span><strong>Best time to fly</strong></div><small>Next 12 h</small></div>
+            <div class="best-window" id="best-window" data-level="unknown" role="status" aria-live="polite">
+              <span class="best-window-mark" id="best-window-mark" aria-hidden="true">◷</span>
+              <span class="best-window-copy"><strong id="best-window-title">Waiting for forecast</strong><small id="best-window-detail">Select an aircraft for a flying window estimate.</small></span>
+              <span class="best-window-tag" id="best-window-tag">—</span>
+            </div>
             <div class="weather-outlook-grid">
               <div><span>CALMEST</span><strong id="outlook-calmest">—</strong><small id="outlook-calmest-detail">Waiting for forecast</small></div>
               <div><span>RAIN PEAK</span><strong id="outlook-rain">—</strong><small id="outlook-rain-detail">Next 12 h</small></div>
@@ -91,11 +104,12 @@
             </div>
           </section>
           <section class="weather-hourly" id="weather-hourly-section" aria-label="Hourly model forecast">
-            <div class="weather-hourly-heading"><strong>Timeline</strong><span id="weather-hourly-range">Past 3 h · next 12 h</span><div class="weather-hourly-actions"><button id="weather-hourly-back" type="button" aria-label="Show earlier hours" title="Earlier hours">‹</button><button id="weather-hourly-forward" type="button" aria-label="Show later hours" title="Later hours">›</button></div></div>
+            <div class="weather-hourly-heading"><strong>Hourly outlook</strong><span id="weather-hourly-range">Past 3 h · next 12 h</span></div>
+            <div class="weather-hourly-legend" aria-hidden="true"><span>Wind</span><span>Rain</span><span>Vis.</span></div>
             <div class="weather-hourly-list" id="weather-hourly-list" role="list" aria-label="Weather by hour"></div>
             <p class="weather-hourly-note">Past values are model estimates.</p>
           </section>
-          <div class="weather-foot"><span id="weather-model">Select a model</span><span id="weather-age">Waiting</span></div>
+          <div class="weather-foot"><span id="weather-model">Select a model</span><span class="weather-caveat" title="Weather estimates are approximate and are not flight clearance">Not flight clearance</span><span id="weather-age">Waiting</span></div>
           <button class="overlay-resize" data-overlay-resize="weather" type="button" aria-label="Resize weather overlay with arrow keys" title="Drag to resize">⌟</button>
         </section>
         <aside class="panel telemetry-panel" id="telemetry-panel" aria-labelledby="telemetry-title">
@@ -180,13 +194,16 @@
             <div class="settings-stream-link"><span class="field-label">RTMP SERVER LINK</span><div class="settings-stream-url"><code id="settings-rtmp-url">rtmp://laptop-ip</code><button class="small-primary-button" id="settings-copy-url" type="button">Copy</button></div></div>
             <p class="settings-note">If your app asks for just one address: <code id="settings-full-rtmp-url"></code></p>
             <div class="settings-stream-link"><span class="field-label">VIEWER LINK</span><code class="viewer-url" id="settings-viewer-url">http://laptop-ip:3000/?stream=x</code></div>
-            <details class="setup-help">
-              <summary><span>i</span> Simple setup guide</summary>
-              <ol>
-                <li>Connect your RTMP-capable camera or controller and this laptop to the same network.</li>
-                <li>In your streaming app, choose <strong>RTMP</strong>. Use the server link and key above, or the complete address for a single address field.</li>
-                <li>Start streaming. This view automatically changes to your live camera.</li>
+            <details class="setup-help" id="setup-help">
+              <summary><span>i</span> First stream setup</summary>
+              <ol class="setup-steps">
+                <li><strong>Choose a feed key</strong><span>Keep the key above, or generate a short unique one for this aircraft.</span></li>
+                <li><strong>Connect to the same network</strong><span>Your controller and this laptop need access to the same local network.</span></li>
+                <li><strong>Enter the RTMP details in DJI Fly</strong><span>Choose RTMP live streaming. Copy the server link and key into their matching fields. If DJI Fly gives you one address field, use the complete address shown above.</span></li>
+                <li><strong>Start the live stream</strong><span id="setup-guide-status">AEROLINK will switch to the camera when the stream arrives.</span></li>
               </ol>
+              <p class="setup-guide-footnote">DJI Fly menu names can vary by aircraft and app version. AEROLINK reports incoming publisher data; exact decoded-frame latency is not available from the embedded viewer.</p>
+              <button class="quiet-button setup-check" id="setup-check" type="button">Check connection</button>
             </details>
           </section>
 
@@ -225,6 +242,17 @@
             <fieldset class="segmented-field"><legend>Weather display</legend><div class="segmented-control"><label><input type="radio" name="weatherDisplay" value="overlay"><span>Overlay</span></label><label><input type="radio" name="weatherDisplay" value="split"><span>Side by side</span></label></div></fieldset>
             <label class="form-row"><span>Pilot wind limit · m/s</span><input name="pilotLimitMps" type="number" min="0.5" max="20" step="0.1" placeholder="Optional"></label>
             <p class="settings-note" id="weather-model-note"></p>
+            <fieldset class="weather-alert-settings">
+              <legend>Weather alert thresholds</legend>
+              <label class="toggle-row"><span><strong>In-app weather alerts</strong><small>Warn as a set threshold gets close</small></span><input type="checkbox" name="weatherAlertsEnabled"><i></i></label>
+              <div class="weather-alert-grid">
+                <label><span>Wind · m/s</span><input name="weatherAlertWindMps" type="number" min="0.5" max="150" step="0.1" placeholder="Off"></label>
+                <label><span>Gust · m/s</span><input name="weatherAlertGustMps" type="number" min="0.5" max="150" step="0.1" placeholder="Off"></label>
+                <label><span>Rain chance · %</span><input name="weatherAlertRainPct" type="number" min="1" max="100" step="1" placeholder="Off"></label>
+                <label><span>Minimum visibility · km</span><input name="weatherAlertVisibilityKm" type="number" min="0.1" max="100" step="0.1" placeholder="Off"></label>
+              </div>
+              <p class="weather-settings-privacy">Alerts compare forecast estimates with your thresholds. They are not flight clearance.</p>
+            </fieldset>
             <button class="demo-button" id="weather-check" type="button">Check conditions now</button>
             <p class="settings-note" id="weather-settings-result" role="status">Enter coordinates and select a model, then check conditions.</p>
             <p class="weather-settings-privacy" id="weather-disclaimer">Approximate calculation only. Wind can change at any time and may be stronger at flight altitude. Check conditions on site; this is not a flight clearance.</p>
@@ -233,7 +261,11 @@
           </section>
 
           <section class="settings-group" aria-labelledby="display-heading">
-            <div class="settings-group-title"><h3 id="display-heading">Flight Display</h3><p>Select units and the details you want visible.</p></div>
+            <div class="settings-group-title"><h3 id="display-heading">Flight Display</h3><p>Choose a simple view or full flight detail.</p></div>
+            <fieldset class="segmented-field"><legend>Display detail</legend><div class="segmented-control">
+              <label><input type="radio" name="displayMode" value="beginner"><span>Simple</span></label>
+              <label><input type="radio" name="displayMode" value="detailed"><span>Detailed</span></label>
+            </div></fieldset>
             <fieldset class="segmented-field"><legend>Units</legend><div class="segmented-control">
               <label><input type="radio" name="units" value="metric"><span>Metric</span></label>
               <label><input type="radio" name="units" value="aviation"><span>Aviation</span></label>

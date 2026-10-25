@@ -2,7 +2,7 @@ const STORAGE_KEY = "lito-dashboard-preferences";
 import { droneProfile } from "./drone-profiles.js";
 
 export const DEFAULT_PREFERENCES = Object.freeze({
-  schemaVersion: 2,
+  schemaVersion: 3,
   theme: "light",
   accent: "blue",
   units: "metric",
@@ -10,7 +10,15 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   uasId: "",
   operatorId: "",
   droneModel: "none",
-  weather: Object.freeze({ enabled: false, display: "overlay", latitude: null, longitude: null, pilotLimitMps: null }),
+  displayMode: "beginner",
+  weather: Object.freeze({
+    enabled: false,
+    display: "overlay",
+    latitude: null,
+    longitude: null,
+    pilotLimitMps: null,
+    alerts: Object.freeze({ enabled: true, windMps: null, gustMps: null, rainProbabilityPct: null, minimumVisibilityKm: null }),
+  }),
   overlayLayout: Object.freeze({ weather: null, telemetry: null, track: null }),
   panels: Object.freeze({
     track: false,
@@ -60,10 +68,11 @@ export function normalizePreferences(input = {}) {
   const source = input && typeof input === "object" ? input : {};
   const panels = source.panels && typeof source.panels === "object" ? source.panels : {};
   const weather = source.weather && typeof source.weather === "object" ? source.weather : {};
+  const alerts = weather.alerts && typeof weather.alerts === "object" ? weather.alerts : {};
   const overlayLayout = source.overlayLayout && typeof source.overlayLayout === "object" ? source.overlayLayout : {};
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     theme: choice(source.theme, "theme", DEFAULT_PREFERENCES.theme),
     accent: choice(source.accent, "accent", DEFAULT_PREFERENCES.accent),
     units: choice(source.units, "units", DEFAULT_PREFERENCES.units),
@@ -71,12 +80,20 @@ export function normalizePreferences(input = {}) {
     uasId: cleanText(source.uasId, "", 64),
     operatorId: cleanText(source.operatorId, "", 64),
     droneModel: droneProfile(source.droneModel).id,
+    displayMode: source.displayMode === "detailed" ? "detailed" : "beginner",
     weather: {
       enabled: panelChoice(weather.enabled, false),
       display: weather.display === "split" ? "split" : "overlay",
       latitude: boundedNumber(weather.latitude, -90, 90),
       longitude: boundedNumber(weather.longitude, -180, 180),
       pilotLimitMps: boundedNumber(weather.pilotLimitMps, 0.5, 20),
+      alerts: {
+        enabled: panelChoice(alerts.enabled, true),
+        windMps: boundedNumber(alerts.windMps, 0.5, 150),
+        gustMps: boundedNumber(alerts.gustMps, 0.5, 150),
+        rainProbabilityPct: boundedNumber(alerts.rainProbabilityPct, 1, 100),
+        minimumVisibilityKm: boundedNumber(alerts.minimumVisibilityKm, 0.1, 100),
+      },
     },
     overlayLayout: {
       weather: layoutEntry(overlayLayout.weather),

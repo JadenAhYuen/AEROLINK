@@ -12,7 +12,7 @@ import {
 
 test("preference defaults favor the daylight appearance and metric flight data", () => {
   assert.deepEqual(DEFAULT_PREFERENCES, {
-    schemaVersion: 2,
+    schemaVersion: 3,
     theme: "light",
     accent: "blue",
     units: "metric",
@@ -20,7 +20,8 @@ test("preference defaults favor the daylight appearance and metric flight data",
     uasId: "",
     operatorId: "",
     droneModel: "none",
-    weather: { enabled: false, display: "overlay", latitude: null, longitude: null, pilotLimitMps: null },
+    displayMode: "beginner",
+    weather: { enabled: false, display: "overlay", latitude: null, longitude: null, pilotLimitMps: null, alerts: { enabled: true, windMps: null, gustMps: null, rainProbabilityPct: null, minimumVisibilityKm: null } },
     overlayLayout: { weather: null, telemetry: null, track: null },
     panels: {
       track: false,
@@ -44,7 +45,7 @@ test("normalizePreferences accepts known choices and trims dashboard identity ov
       panels: { track: false, overlay: false, identity: true, signal: false, rawOutput: false },
     }),
     {
-      schemaVersion: 2,
+      schemaVersion: 3,
       theme: "light",
       accent: "indigo",
       units: "aviation",
@@ -52,7 +53,8 @@ test("normalizePreferences accepts known choices and trims dashboard identity ov
       uasId: "1581F-test",
       operatorId: "MUS-OP-001",
       droneModel: "none",
-      weather: { enabled: false, display: "overlay", latitude: null, longitude: null, pilotLimitMps: null },
+      displayMode: "beginner",
+      weather: { enabled: false, display: "overlay", latitude: null, longitude: null, pilotLimitMps: null, alerts: { enabled: true, windMps: null, gustMps: null, rainProbabilityPct: null, minimumVisibilityKm: null } },
       overlayLayout: { weather: null, telemetry: null, track: null },
       panels: { track: false, overlay: false, identity: true, signal: false, rawOutput: false },
     },

@@ -30,6 +30,8 @@ or resize it from its lower corner. Its layout saves separately for each feed.
 - Keeps an RTMP server link, stream key, and complete address clearly separated in Settings.
 - Provides an OBS/vMix **Clean streaming output** browser-source mode.
 - Presents a polished waiting state until a live feed is available.
+- Shows whether the stream server is reachable, waiting for a publisher, receiving data, or stalled.
+- Offers **Simple** and **Detailed** display modes, with a step-by-step DJI Fly RTMP setup guide.
 - Offers telemetry and a home-relative track as an **in-development** feature,
   with an optional simulated preview in Settings.
 - Shows optional wind at 10, 80 and 120 m, surface gusts, rain chance, visibility and conditions for chosen coordinates, with a
@@ -45,9 +47,16 @@ twelve forecast hours, including wind by altitude, gusts, rain probability and
 visibility. A wind-profile chart shows how wind builds with altitude and compares
 it with the selected aircraft limit. Planning cues summarize the calmest forecast
 hour, peak rain chance, wind change from 10 to 120 m, and the next sunrise or sunset.
-Scroll or use the large arrow buttons to move along the timeline. Changes save as you make them.
-Each feed saves its own location and model. Conditions refresh every five minutes
-while enabled.
+The timeline fits into the briefing without horizontal scrolling and highlights
+the longest upcoming favourable window for the selected aircraft. Each feed saves
+its own location and model. Conditions refresh every five minutes while enabled.
+
+The Detailed view adds a map for the selected weather point with current wind
+direction and forecast age. Optional in-app alerts compare wind, gust, rain and
+visibility forecasts with thresholds you set in Settings; leave a threshold
+blank to skip it. These alerts and the weather assessment are estimates, not
+flight clearance. Stream health reflects publisher data reported by MediaMTX;
+it cannot measure decoded-frame latency inside the embedded viewer.
 
 The estimate uses Open-Meteo's modelled conditions near the requested point,
 including wind at **10, 80 and 120 m**, surface gusts, next-hour rain probability

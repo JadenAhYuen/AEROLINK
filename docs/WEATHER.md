@@ -12,7 +12,9 @@ values and the next twelve forecast hours. Past values are model history, not
 on-site observations. The side-by-side briefing plots wind at three heights,
 shows the aircraft limit when known, and surfaces the calmest hour, highest rain
 chance, wind change with altitude, and the next daylight transition. The app refreshes every five minutes;
-weather older than 30 minutes produces no assessment.
+weather older than 10 minutes is marked stale; weather older than 30 minutes
+produces no assessment. Detailed mode also shows a map of the selected weather
+point, wind direction, and forecast age.
 Place search uses Open-Meteo's geocoding service, whose location data is based
 on GeoNames. Selecting a place fills its coordinates; a named city is a broad
 location, so enter precise coordinates if the launch site is elsewhere.
@@ -33,6 +35,12 @@ The 70% threshold is a conservative app choice. Manufacturer maximum wind
 resistance is not an operating target. The app does not assess terrain, nearby
 weather cells, battery, airspace, pilot
 skill, or aircraft-specific restrictions. Always check on site.
+
+Optional in-app alerts use pilot-entered thresholds for wind, gusts, rain
+probability, and minimum visibility. A warning appears as a value approaches
+the configured threshold and changes severity when it is reached. Blank
+thresholds are ignored. Alerts compare model estimates only and are not a
+flight clearance.
 
 ## Aircraft references
 

@@ -274,7 +274,7 @@ test("stream status reflects MediaMTX path readiness", async () => {
   await withMockMediaMtx({ ready: true, bytesReceived: 4096 }, async (mediaMtxApiUrl) => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/stream/status`);
-      assert.deepEqual(await response.json(), { live: true, bytesReceived: 4096 });
+      assert.deepEqual(await response.json(), { live: true, serverReachable: true, reason: null, bytesReceived: 4096 });
     }, { mediaMtxApiUrl });
   });
 });
@@ -284,6 +284,7 @@ test("stream status degrades safely when MediaMTX is unavailable", async () => {
     const response = await fetch(`${baseUrl}/api/stream/status`);
     assert.deepEqual(await response.json(), {
       live: false,
+      serverReachable: false,
       reason: "media-server-unavailable",
     });
   }, { mediaMtxApiUrl: "http://127.0.0.1:1" });

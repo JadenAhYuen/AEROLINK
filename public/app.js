@@ -11,7 +11,7 @@ import { assessWeather, weatherDescription, WEATHER_DISCLAIMER } from "./weather
 import { createLocationMap } from "./location-map.js";
 
 const elementIds = [
-  "video-status", "telemetry-status", "video-frame", "video-placeholder", "live-badge",
+  "video-status", "telemetry-status", "video-frame", "video-placeholder", "live-badge", "live-badge-label", "stream-health", "stream-health-label", "stream-health-detail", "setup-guide-status", "setup-check",
   "rtmp-url", "copy-url", "reload-video", "freshness", "freshness-label", "source-badge",
   "height-value", "height-unit", "speed-value", "speed-unit", "distance-value", "distance-unit",
   "course-value", "course-arrow", "bearing-value", "signal-value", "uas-id", "operator-id",
@@ -21,7 +21,7 @@ const elementIds = [
   "track-panel", "identity-section", "signal-metric", "uas-override-badge", "operator-override-badge",
   "settings-rtmp-url", "settings-copy-url", "settings-stream-key", "settings-new-key", "settings-switch-feed", "settings-viewer-url", "telemetry-panel",
   "placeholder-reel-a", "placeholder-reel-b", "welcome-screen", "skip-welcome", "clean-output-note", "clean-output-url", "clean-output-copy", "clean-output-open", "settings-full-rtmp-url",
-  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-wind-80", "weather-wind-120", "weather-rain", "weather-visibility", "weather-direction", "weather-temperature", "weather-cloud", "weather-reason", "weather-icon", "weather-age", "wind-meter", "wind-marker", "weather-wind-chart", "weather-wind-chart-range", "weather-chart-limit-label", "outlook-calmest", "outlook-calmest-detail", "outlook-rain", "outlook-rain-detail", "outlook-shear", "outlook-shear-detail", "outlook-light-label", "outlook-light", "outlook-light-detail", "weather-hourly-section", "weather-hourly-range", "weather-hourly-list", "weather-hourly-back", "weather-hourly-forward", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result", "weather-place-query", "weather-place-search", "weather-place-results", "weather-map-details", "weather-map", "weather-map-tiles", "weather-map-zoom-in", "weather-map-zoom-out",
+  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-alert", "weather-alert-title", "weather-alert-detail", "weather-freshness", "briefing-map-region", "briefing-map", "briefing-map-tiles", "briefing-map-wind-arrow", "briefing-coordinate", "briefing-wind-arrow", "briefing-wind-copy", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-wind-80", "weather-wind-120", "weather-rain", "weather-visibility", "weather-direction", "weather-temperature", "weather-cloud", "weather-reason", "weather-icon", "weather-age", "wind-meter", "wind-marker", "weather-wind-chart", "weather-wind-chart-range", "weather-chart-limit-label", "outlook-calmest", "outlook-calmest-detail", "outlook-rain", "outlook-rain-detail", "outlook-shear", "outlook-shear-detail", "outlook-light-label", "outlook-light", "outlook-light-detail", "best-window", "best-window-mark", "best-window-title", "best-window-detail", "best-window-tag", "weather-hourly-section", "weather-hourly-range", "weather-hourly-list", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result", "weather-place-query", "weather-place-search", "weather-place-results", "weather-map-details", "weather-map", "weather-map-tiles", "weather-map-zoom-in", "weather-map-zoom-out",
 ];
 
 const elements = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
@@ -60,6 +60,12 @@ const state = {
   trail: [],
   simulatorRunning: false,
   videoLive: false,
+  videoEverLive: false,
+  streamServerReachable: null,
+  streamStatusReason: null,
+  streamBytesReceived: null,
+  streamObservedAt: null,
+  lastStreamDataAt: null,
   toastTimer: null,
   preferences: loadPreferences(preferenceStorage, preferencesStorageKey),
   savedPreferences: loadPreferences(preferenceStorage, preferencesStorageKey),
@@ -67,6 +73,7 @@ const state = {
   weatherKey: null,
   weatherError: null,
   weatherRequest: 0,
+  briefingMapKey: null,
 };
 
 const overlayPanels = {
@@ -274,13 +281,56 @@ function renderPlanningCues(data) {
   elements["outlook-light-detail"].textContent = event ? "Local time estimate" : "Daylight data unavailable";
 }
 
+function renderBestWindow(data, limit, ageMinutes) {
+  const host = elements["best-window"];
+  const set = (level, title, detail, tag, mark) => {
+    host.dataset.level = level;
+    elements["best-window-title"].textContent = title;
+    elements["best-window-detail"].textContent = detail;
+    elements["best-window-tag"].textContent = tag;
+    elements["best-window-mark"].textContent = mark;
+  };
+  const hours = Array.isArray(data?.hourly) ? data.hourly : [];
+  if (!data || !hours.length) return set("unknown", "Forecast unavailable", "Choose a location and refresh the weather forecast.", "NO DATA", "!");
+  if (ageMinutes > 10) return set("stale", "Forecast needs refreshing", `Last update ${Math.floor(ageMinutes)} min ago · check current conditions before flying.`, "STALE", "↻");
+  if (!Number.isFinite(limit) || limit <= 0) return set("unknown", "Choose an aircraft", "Select a model in Settings to estimate a favourable window.", "SET MODEL", "◇");
+  const now = Date.now();
+  const timeLabel = (value) => new Intl.DateTimeFormat(undefined, { hour: "numeric" }).format(new Date(value));
+  const peakWind = (hour) => Math.max(...[hour.windMps, hour.wind80Mps, hour.wind120Mps, hour.gustMps].filter(Number.isFinite));
+  const upcoming = hours.filter((hour) => Date.parse(hour.time) >= now);
+  const rated = upcoming.map((hour) => {
+    const peak = peakWind(hour);
+    const precipitation = Number.isFinite(hour.weatherCode) && ([45, 48].includes(hour.weatherCode) || hour.weatherCode >= 51);
+    const noGo = (Number.isFinite(peak) && peak >= limit) || (Number.isFinite(hour.visibilityM) && hour.visibilityM < 1000) || precipitation;
+    const missing = !Number.isFinite(peak) || !Number.isFinite(hour.visibilityM) || !Number.isFinite(hour.rainProbabilityPct);
+    const caution = !noGo && (missing || peak >= limit * .7 || hour.visibilityM < 3000 || hour.rainProbabilityPct >= 60 || hour.isDay === false);
+    return { hour, peak, level: noGo ? "no-go" : caution ? "caution" : "favourable" };
+  });
+  const favourable = rated.filter((entry) => entry.level === "favourable");
+  const windows = [];
+  for (const entry of favourable) {
+    const prior = windows.at(-1);
+    if (prior && Date.parse(entry.hour.time) - Date.parse(prior.at(-1).hour.time) <= 90 * 60_000) prior.push(entry);
+    else windows.push([entry]);
+  }
+  const best = windows.filter((window) => window.length >= 2).sort((a, b) => b.length - a.length || a.reduce((sum, item) => sum + item.peak, 0) / a.length - b.reduce((sum, item) => sum + item.peak, 0) / b.length)[0];
+  if (best) {
+    const first = best[0].hour.time, last = best.at(-1).hour.time;
+    const mean = best.reduce((sum, item) => sum + item.peak, 0) / best.length;
+    return set("favourable", `${best.length} h favourable · ${timeLabel(first)}–${timeLabel(last)}`, `Peak wind averages ${windDisplay(mean)} · forecast estimate only.`, "GOOD WINDOW", "✓");
+  }
+  const short = favourable[0];
+  if (short) return set("caution", `Short favourable window · ${timeLabel(short.hour.time)}`, `About one hour · peak wind ${windDisplay(short.peak)}.`, "SHORT WINDOW", "◷");
+  const calm = rated.filter((entry) => Number.isFinite(entry.peak)).sort((a, b) => a.peak - b.peak)[0];
+  if (!calm) return set("unknown", "Forecast is incomplete", "No usable hourly wind values are available.", "NO DATA", "!");
+  return set("no-go", `No favourable window · calmest ${timeLabel(calm.hour.time)}`, `${calm.level === "no-go" ? "Wind, rain or visibility exceeds the selected guidance." : "Conditions remain marginal across this forecast."} Estimate only · not flight clearance.`, "NO WINDOW", "!");
+}
+
 function renderHourlyWeather(data, limit) {
   const list = elements["weather-hourly-list"];
   const renderKey = `${data?.latitude ?? ""},${data?.longitude ?? ""}:${data?.fetchedAt ?? "empty"}:${limit ?? "unknown"}:${state.preferences.units}`;
   if (list.dataset.renderKey === renderKey) return;
   list.dataset.renderKey = renderKey;
-  const previousScroll = list.scrollLeft;
-  const previousKey = list.dataset.locationKey;
   list.replaceChildren();
   const hours = Array.isArray(data?.hourly) ? data.hourly : [];
   const now = Date.now();
@@ -300,10 +350,12 @@ function renderHourlyWeather(data, limit) {
     const date = new Date(timestamp);
     const ratingKnown = Number.isFinite(limit) && limit > 0;
     const peak = Math.max(...[hour.windMps, hour.wind80Mps, hour.wind120Mps, hour.gustMps].filter(Number.isFinite));
-    const caution = !ratingKnown || (Number.isFinite(hour.rainProbabilityPct) && hour.rainProbabilityPct >= 60) || (Number.isFinite(hour.visibilityM) && hour.visibilityM < 3000) || ![hour.windMps, hour.wind80Mps, hour.wind120Mps, hour.visibilityM, hour.rainProbabilityPct, hour.weatherCode].every(Number.isFinite);
-    const noGo = (ratingKnown && peak >= limit) || (Number.isFinite(hour.visibilityM) && hour.visibilityM < 1000) || (Number.isFinite(hour.weatherCode) && ([45, 48].includes(hour.weatherCode) || hour.weatherCode >= 51));
+    const precipitation = Number.isFinite(hour.weatherCode) && ([45, 48].includes(hour.weatherCode) || hour.weatherCode >= 51);
+    const noGo = (ratingKnown && peak >= limit) || (Number.isFinite(hour.visibilityM) && hour.visibilityM < 1000) || precipitation;
+    const missing = ![hour.windMps, hour.wind80Mps, hour.wind120Mps, hour.visibilityM, hour.rainProbabilityPct].every(Number.isFinite);
+    const caution = !noGo && (Number.isFinite(limit) && peak >= limit * .7 || Number.isFinite(hour.rainProbabilityPct) && hour.rainProbabilityPct >= 60 || Number.isFinite(hour.visibilityM) && hour.visibilityM < 3000 || hour.isDay === false);
     card.className = "weather-hour-card";
-    card.dataset.level = !ratingKnown ? "unknown" : noGo ? "no-go" : caution ? "caution" : "favourable";
+    card.dataset.level = !ratingKnown ? "unknown" : noGo ? "no-go" : missing ? "unknown" : caution ? "caution" : "favourable";
     card.setAttribute("role", "listitem");
     const label = document.createElement("div");
     label.className = "weather-hour-label";
@@ -312,13 +364,19 @@ function renderHourlyWeather(data, limit) {
     timeLabel.textContent = index === nearestIndex ? "NOW" : new Intl.DateTimeFormat(undefined, crossesDay ? { weekday: "short", hour: "numeric" } : { hour: "numeric" }).format(date);
     const riskLabel = document.createElement("span");
     riskLabel.className = "weather-hour-risk";
-    riskLabel.textContent = !ratingKnown ? "SET LIMIT" : noGo ? "LIMIT" : caution ? "CAUTION" : "LOW";
+    riskLabel.textContent = !ratingKnown ? "SET MODEL" : noGo ? "CHECK" : missing ? "PARTIAL" : caution ? "WATCH" : "GOOD";
     label.append(timeLabel, riskLabel);
     if (index === nearestIndex) { card.classList.add("is-now"); nowCard = card; }
     if (timestamp < now - 45 * 60_000) card.classList.add("is-past");
     const condition = document.createElement("div");
     condition.className = "weather-hour-condition";
     condition.textContent = `${weatherIcon(hour.weatherCode, hour.isDay)} ${hour.isDay === false ? "Night · " : ""}${weatherDescription(hour.weatherCode)}`;
+    const peakTrack = document.createElement("div");
+    peakTrack.className = "timeline-wind-track";
+    peakTrack.setAttribute("aria-label", `Peak wind ${Number.isFinite(peak) ? windDisplay(peak) : "unavailable"} against ${ratingKnown ? windDisplay(limit) : "no selected aircraft limit"}`);
+    const peakFill = document.createElement("i");
+    peakFill.style.width = ratingKnown && Number.isFinite(peak) ? `${Math.min(100, Math.max(4, peak / limit * 100))}%` : "0%";
+    peakTrack.append(peakFill);
     const winds = document.createElement("div");
     winds.className = "weather-hour-winds";
     for (const [name, value] of [["10m", hour.windMps], ["80m", hour.wind80Mps], ["120m", hour.wind120Mps]]) {
@@ -341,13 +399,92 @@ function renderHourlyWeather(data, limit) {
       metric.append(labelNode, valueNode);
       details.append(metric);
     }
-    card.append(label, condition, winds, details);
+    card.title = `Wind 10 m ${windDisplay(hour.windMps)} · 80 m ${windDisplay(hour.wind80Mps)} · 120 m ${windDisplay(hour.wind120Mps)} · gust ${windDisplay(hour.gustMps)} · rain ${Number.isFinite(hour.rainProbabilityPct) ? `${hour.rainProbabilityPct}%` : "unavailable"} · visibility ${Number.isFinite(hour.visibilityM) ? `${(hour.visibilityM / 1000).toFixed(1)} km` : "unavailable"}`;
+    card.append(label, condition, peakTrack, winds, details);
     list.append(card);
   }
   elements["weather-hourly-range"].textContent = "Past 3 h · next 12 h";
-  list.dataset.locationKey = weatherLocationKey(state.preferences) ?? "";
-  if (previousKey !== list.dataset.locationKey && nowCard) list.scrollLeft = nowCard.offsetLeft - list.offsetLeft - (list.clientWidth - nowCard.clientWidth) / 2;
-  else list.scrollLeft = previousScroll;
+}
+
+function updateWeatherAlertInputs() {
+  const form = elements["settings-form"];
+  const enabled = form.elements.namedItem("weatherAlertsEnabled").checked;
+  for (const name of ["weatherAlertWindMps", "weatherAlertGustMps", "weatherAlertRainPct", "weatherAlertVisibilityKm"]) {
+    form.elements.namedItem(name).disabled = !enabled;
+  }
+}
+
+function renderWeatherAlerts(data, ageMinutes) {
+  const host = elements["weather-alert"];
+  const preferences = state.preferences.weather.alerts;
+  host.hidden = false;
+  if (!data) {
+    host.hidden = true;
+    return;
+  }
+  if (ageMinutes > 10) {
+    host.dataset.level = "stale";
+    elements["weather-alert-title"].textContent = "Forecast stale";
+    elements["weather-alert-detail"].textContent = `Updated ${Math.floor(ageMinutes)} min ago · check conditions again`;
+    return;
+  }
+  if (!preferences.enabled) {
+    host.hidden = true;
+    return;
+  }
+
+  const alerts = [];
+  const add = (label, value, threshold, thresholdText, direction = "maximum") => {
+    if (!Number.isFinite(value) || !Number.isFinite(threshold)) return;
+    const crossed = direction === "maximum" ? value >= threshold : value <= threshold;
+    const approaching = direction === "maximum" ? value >= threshold * 0.8 : value <= threshold * 1.2;
+    if (crossed || approaching) alerts.push({ crossed, text: `${label} ${crossed ? "above" : "near"} ${thresholdText}` });
+  };
+  const winds = [data.windMps, data.wind80Mps, data.wind120Mps].filter(Number.isFinite);
+  add("Wind", winds.length ? Math.max(...winds) : null, preferences.windMps, windDisplay(preferences.windMps));
+  add("Gust", data.gustMps, preferences.gustMps, windDisplay(preferences.gustMps));
+  if (Number.isFinite(data.rainProbabilityPct) && Number.isFinite(preferences.rainProbabilityPct)) {
+    const crossed = data.rainProbabilityPct >= preferences.rainProbabilityPct;
+    const approaching = data.rainProbabilityPct >= preferences.rainProbabilityPct * 0.8;
+    if (crossed || approaching) alerts.push({ crossed, text: `Rain ${Math.round(data.rainProbabilityPct)}% · ${crossed ? "limit reached" : "approaching"}` });
+  }
+  if (Number.isFinite(data.visibilityM) && Number.isFinite(preferences.minimumVisibilityKm)) {
+    const visibilityKm = data.visibilityM / 1000;
+    const crossed = visibilityKm <= preferences.minimumVisibilityKm;
+    const approaching = visibilityKm <= preferences.minimumVisibilityKm * 1.2;
+    if (crossed || approaching) alerts.push({ crossed, text: `Visibility ${visibilityKm.toFixed(1)} km · ${crossed ? "below minimum" : "approaching"}` });
+  }
+  if (!alerts.length) {
+    host.hidden = true;
+    return;
+  }
+  const crossed = alerts.some((alert) => alert.crossed);
+  host.dataset.level = crossed ? "exceeded" : "approaching";
+  elements["weather-alert-title"].textContent = crossed ? "Threshold reached" : "Conditions approaching limit";
+  elements["weather-alert-detail"].textContent = alerts.slice(0, 2).map((alert) => alert.text).join(" · ");
+}
+
+function syncBriefingMap(data) {
+  const preferences = state.preferences;
+  const key = weatherLocationKey(preferences);
+  const show = preferences.displayMode === "detailed" && preferences.weather.enabled && preferences.weather.display === "split" && Boolean(key) && !cleanOutputEnabled();
+  elements["briefing-map-region"].hidden = !show;
+  if (!show) return;
+  if (state.briefingMapKey !== key) {
+    const [latitude, longitude] = key.split(",").map(Number);
+    briefingLocationMap.setCenter(latitude, longitude);
+    briefingLocationMap.open();
+    state.briefingMapKey = key;
+  }
+  const [latitude, longitude] = key.split(",").map(Number);
+  elements["briefing-coordinate"].textContent = `${latitude.toFixed(3)}°, ${longitude.toFixed(3)}°`;
+  const direction = Number.isFinite(data?.directionDeg) ? Math.round(data.directionDeg / 22.5) % 16 : null;
+  const compass = direction === null ? null : ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"][direction];
+  elements["briefing-wind-copy"].textContent = compass && Number.isFinite(data?.windMps) ? `From ${compass} · ${windDisplay(data.windMps)}` : "Wind unavailable";
+  elements["briefing-wind-arrow"].style.transform = `rotate(${Number.isFinite(data?.directionDeg) ? (data.directionDeg + 180) % 360 : 0}deg)`;
+  elements["briefing-wind-arrow"].classList.toggle("available", compass !== null);
+  elements["briefing-map-wind-arrow"].style.transform = `rotate(${Number.isFinite(data?.directionDeg) ? (data.directionDeg + 180) % 360 : 0}deg)`;
+  elements["briefing-map-wind-arrow"].classList.toggle("available", compass !== null);
 }
 
 function renderWeather() {
@@ -358,10 +495,16 @@ function renderWeather() {
   elements["weather-model"].textContent = profile.name;
   const key = weatherLocationKey(prefs);
   const data = key === state.weatherKey ? state.weatherData : null;
-  const assessment = data ? assessWeather(data, profile.id, prefs.weather.pilotLimitMps) : null;
+  const ageMinutes = data ? Math.max(0, (Date.now() - Date.parse(data.fetchedAt)) / 60_000) : Infinity;
+  const assessment = data && ageMinutes <= 30 ? assessWeather(data, profile.id, prefs.weather.pilotLimitMps) : null;
   const level = assessment?.level ?? "unknown";
   panel.dataset.level = level;
-  elements["weather-status"].textContent = { favourable: "LOW RISK*", caution: "CAUTION", "no-go": "DO NOT FLY", unknown: key ? state.weatherError || "NO DATA" : "SET LOCATION" }[level];
+  elements["weather-status"].textContent = data && ageMinutes > 10
+    ? `STALE ${Math.floor(ageMinutes)}m`
+    : level === "unknown" && data
+    ? (profile.id === "none" && !Number.isFinite(prefs.weather.pilotLimitMps) ? "SET MODEL" : "SET LIMIT")
+    : { favourable: "LOW RISK*", caution: "CAUTION", "no-go": "DO NOT FLY", unknown: key ? state.weatherError || "NO DATA" : "SET LOCATION" }[level];
+  elements["weather-status"].classList.toggle("stale", ageMinutes > 10);
   elements["weather-condition"].textContent = data ? weatherDescription(data.weatherCode) : key ? "Weather unavailable" : "Set location";
   elements["weather-reason"].textContent = assessment?.reason ?? (key ? "Weather unavailable. Check Settings." : "Choose a weather location in Settings.");
   elements["weather-icon"].textContent = data ? weatherIcon(data.weatherCode, data.isDay) : "◌";
@@ -378,17 +521,20 @@ function renderWeather() {
   const limit = assessment?.limitMps ?? profile.maxWindMps;
   renderWindProfile(data, limit);
   renderPlanningCues(data);
+  renderBestWindow(data, limit, ageMinutes);
   renderHourlyWeather(data, limit);
   const ratio = data && Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.max(0, Math.max(data.windMps, data.gustMps, ...[data.wind80Mps, data.wind120Mps].filter(Number.isFinite)) / limit * 100)) : null;
   elements["wind-meter"].classList.toggle("empty", ratio === null || level === "unknown");
   elements["wind-meter"].setAttribute("aria-valuenow", ratio === null || level === "unknown" ? "0" : String(Math.round(ratio)));
   elements["wind-meter"].setAttribute("aria-valuetext", ratio === null || level === "unknown" ? "No current wind assessment" : `Peak wind ${Math.round(ratio)}% of ${windDisplay(limit)} limit`);
   elements["wind-marker"].style.left = `${ratio ?? 0}%`;
-  elements["weather-age"].textContent = data ? `Updated ${Math.max(0, Math.floor((Date.now() - Date.parse(data.fetchedAt)) / 60_000))}m ago` : "Check Settings";
+  const freshness = !key ? "Set location" : !data ? state.weatherError ? "Unavailable" : "Forecast waiting" : ageMinutes > 10 ? `Stale · ${Math.floor(ageMinutes)}m` : `Updated ${Math.floor(ageMinutes)}m ago`;
+  elements["weather-age"].textContent = freshness;
+  elements["weather-freshness"].textContent = freshness;
+  elements["weather-freshness"].dataset.state = data && ageMinutes > 10 ? "stale" : data ? "fresh" : "waiting";
+  renderWeatherAlerts(data, ageMinutes);
+  syncBriefingMap(data);
 }
-
-elements["weather-hourly-back"].addEventListener("click", () => elements["weather-hourly-list"].scrollBy({ left: -540, behavior: "smooth" }));
-elements["weather-hourly-forward"].addEventListener("click", () => elements["weather-hourly-list"].scrollBy({ left: 540, behavior: "smooth" }));
 
 async function refreshWeather({ force = false, coordinates = null } = {}) {
   const prefs = state.preferences;
@@ -566,6 +712,8 @@ function renderIdentity() {
 }
 
 function applyPreferences(preferences, { renderData = true } = {}) {
+  const oldDisplayMode = state.preferences?.weather?.display;
+  const oldWeatherEnabled = state.preferences?.weather?.enabled;
   const normalized = normalizePreferences(preferences);
   document.documentElement.dataset.theme = normalized.theme;
   document.documentElement.dataset.accent = normalized.accent;
@@ -574,7 +722,15 @@ function applyPreferences(preferences, { renderData = true } = {}) {
   elements["track-panel"].classList.toggle("preference-hidden", !normalized.panels.track);
   elements["telemetry-panel"]?.classList.toggle("preference-hidden", !normalized.panels.overlay);
   state.preferences = normalized;
-  document.documentElement.classList.toggle("weather-split", normalized.weather.enabled && normalized.weather.display === "split" && !cleanOutputEnabled());
+  document.documentElement.classList.toggle("beginner-mode", normalized.displayMode === "beginner");
+  const splitWeather = normalized.weather.enabled && normalized.weather.display === "split" && !cleanOutputEnabled();
+  const wasSplitWeather = document.documentElement.classList.contains("weather-split");
+  document.documentElement.classList.toggle("weather-split", splitWeather);
+  if (splitWeather !== wasSplitWeather || oldDisplayMode !== normalized.weather.display || oldWeatherEnabled !== normalized.weather.enabled) {
+    const resetWeatherScroll = () => { elements["weather-panel"].scrollTop = 0; };
+    resetWeatherScroll();
+    requestAnimationFrame(resetWeatherScroll);
+  }
   renderWeather();
   applyOverlayLayout();
   elements["identity-section"].classList.toggle("preference-hidden", !normalized.panels.identity);
@@ -676,6 +832,7 @@ function updateTrack() {
 }
 
 function updateFreshness() {
+  renderStreamHealth();
   if (!state.telemetry) {
     setStatus(elements["telemetry-status"], "idle", "Telemetry · In development");
     elements["freshness-label"].textContent = "Waiting for receiver";
@@ -695,6 +852,36 @@ function updateFreshness() {
     ? `Last packet ${Math.floor(ageSeconds)} seconds ago`
     : `Updated ${ageSeconds < 1 ? "now" : `${Math.floor(ageSeconds)}s ago`}`;
   elements.freshness.querySelector(".freshness-line span").style.transform = `scaleX(${Math.max(0, 1 - ageSeconds / 5)})`;
+}
+
+function renderStreamHealth() {
+  let level = "checking", title = "Checking connection", detail = "Contacting stream server";
+  let videoLabel = "Video waiting";
+  if (state.streamServerReachable === false) {
+    level = state.streamStatusReason === "media-server-disabled" ? "offline" : "offline";
+    title = state.streamStatusReason === "media-server-disabled" ? "Stream server disabled" : "Stream server unreachable";
+    detail = "Check the AEROLINK launcher and network";
+    videoLabel = "Gateway offline";
+  } else if (state.streamServerReachable === true && !state.videoLive) {
+    level = state.videoEverLive ? "reconnecting" : "waiting";
+    title = state.videoEverLive ? "Reconnecting" : "Server ready";
+    detail = state.videoEverLive ? "Waiting for the camera stream" : "Waiting for camera stream";
+    videoLabel = state.videoEverLive ? "Video reconnecting" : "Video waiting";
+  } else if (state.videoLive) {
+    const dataWasObserved = state.lastStreamDataAt !== null;
+    const referenceTime = state.lastStreamDataAt ?? state.streamObservedAt;
+    const seconds = referenceTime === null ? null : Math.max(0, Math.floor((Date.now() - referenceTime) / 1000));
+    const stalled = seconds !== null && seconds > 10;
+    level = stalled ? "stalled" : "live";
+    title = stalled ? "Stream may be stalled" : "Stream connected";
+    detail = seconds === null ? "Publisher active · traffic timing unavailable" : stalled ? `No new data observed · ${seconds}s` : dataWasObserved ? `Publisher data seen · ${seconds < 1 ? "now" : `${seconds}s ago`}` : "Publisher active · checking for new data";
+    videoLabel = stalled ? "Video stalled" : "Video live";
+  }
+  elements["stream-health"].dataset.state = level;
+  elements["stream-health-label"].textContent = title;
+  elements["stream-health-detail"].textContent = detail;
+  setStatus(elements["video-status"], level === "live" ? "live" : level === "stalled" || level === "reconnecting" ? "stale" : "idle", videoLabel);
+  if (elements["live-badge-label"]) elements["live-badge-label"].textContent = level === "stalled" ? "STALLED" : level === "reconnecting" ? "RECONNECTING" : "LIVE";
 }
 
 function updateTelemetry(telemetry) {
@@ -725,21 +912,44 @@ function updateTelemetry(telemetry) {
 async function refreshStreamStatus() {
   try {
     const response = await fetch(streamApi("/api/stream/status"), { cache: "no-store" });
+    if (!response.ok) throw new Error("Stream status unavailable");
     const status = await response.json();
     const wasLive = state.videoLive;
+    state.streamServerReachable = status.serverReachable === true;
+    state.streamStatusReason = status.reason ?? null;
+    if (Number.isFinite(status.bytesReceived)) {
+      if (state.streamObservedAt === null) state.streamObservedAt = Date.now();
+      if (state.streamBytesReceived !== null && status.bytesReceived !== state.streamBytesReceived) state.lastStreamDataAt = Date.now();
+      state.streamBytesReceived = status.bytesReceived;
+    } else if (status.live && state.lastStreamDataAt === null) {
+      state.lastStreamDataAt = Date.now();
+    }
     state.videoLive = status.live === true;
+    if (state.videoLive) state.videoEverLive = true;
     document.body.classList.toggle("video-live", state.videoLive);
-    setStatus(elements["video-status"], state.videoLive ? "live" : "idle", state.videoLive ? "Video live" : "Video waiting");
     elements["video-placeholder"].classList.toggle("hidden", state.videoLive);
     elements["live-badge"].classList.toggle("visible", state.videoLive);
     if (state.videoLive && !wasLive) reloadVideo();
+    renderStreamHealth();
+    updateSetupGuideStatus();
   } catch {
     state.videoLive = false;
+    state.streamServerReachable = false;
+    state.streamStatusReason = "media-server-unavailable";
     document.body.classList.remove("video-live");
     elements["video-placeholder"].classList.remove("hidden");
     elements["live-badge"].classList.remove("visible");
-    setStatus(elements["video-status"], "idle", "Gateway offline");
+    renderStreamHealth();
+    updateSetupGuideStatus();
   }
+}
+
+function updateSetupGuideStatus() {
+  if (!elements["setup-guide-status"]) return;
+  if (state.videoLive) elements["setup-guide-status"].textContent = "Camera stream detected. The viewer should be showing it now.";
+  else if (state.streamServerReachable === false) elements["setup-guide-status"].textContent = "Stream server unavailable. Check that the AEROLINK launcher is running.";
+  else if (state.videoEverLive) elements["setup-guide-status"].textContent = "Stream interrupted. Check DJI Fly and the selected feed key.";
+  else elements["setup-guide-status"].textContent = "Waiting for camera stream. Check DJI Fly is streaming to this feed key.";
 }
 
 function reloadVideo() {
@@ -779,11 +989,18 @@ function fillSettings(preferences) {
   form.elements.namedItem("uasId").value = normalized.uasId;
   form.elements.namedItem("operatorId").value = normalized.operatorId;
   form.elements.namedItem("droneModel").value = normalized.droneModel;
+  form.elements.namedItem("displayMode").value = normalized.displayMode;
   form.elements.namedItem("weatherEnabled").checked = normalized.weather.enabled;
   form.elements.namedItem("weatherDisplay").value = normalized.weather.display;
   form.elements.namedItem("weatherLatitude").value = normalized.weather.latitude ?? "";
   form.elements.namedItem("weatherLongitude").value = normalized.weather.longitude ?? "";
   form.elements.namedItem("pilotLimitMps").value = normalized.weather.pilotLimitMps ?? "";
+  form.elements.namedItem("weatherAlertsEnabled").checked = normalized.weather.alerts.enabled;
+  form.elements.namedItem("weatherAlertWindMps").value = normalized.weather.alerts.windMps ?? "";
+  form.elements.namedItem("weatherAlertGustMps").value = normalized.weather.alerts.gustMps ?? "";
+  form.elements.namedItem("weatherAlertRainPct").value = normalized.weather.alerts.rainProbabilityPct ?? "";
+  form.elements.namedItem("weatherAlertVisibilityKm").value = normalized.weather.alerts.minimumVisibilityKm ?? "";
+  updateWeatherAlertInputs();
   updateWeatherModelNote();
   form.elements.namedItem("panelTrack").checked = normalized.panels.track;
   form.elements.namedItem("panelOverlay").checked = normalized.panels.overlay;
@@ -837,6 +1054,7 @@ function preferencesFromForm() {
     uasId: form.elements.namedItem("uasId").value,
     operatorId: form.elements.namedItem("operatorId").value,
     droneModel: form.elements.namedItem("droneModel").value,
+    displayMode: form.elements.namedItem("displayMode").value,
     overlayLayout: state.savedPreferences.overlayLayout,
     weather: {
       enabled: form.elements.namedItem("weatherEnabled").checked,
@@ -844,6 +1062,13 @@ function preferencesFromForm() {
       latitude: form.elements.namedItem("weatherLatitude").value,
       longitude: form.elements.namedItem("weatherLongitude").value,
       pilotLimitMps: form.elements.namedItem("pilotLimitMps").value,
+      alerts: {
+        enabled: form.elements.namedItem("weatherAlertsEnabled").checked,
+        windMps: form.elements.namedItem("weatherAlertWindMps").value,
+        gustMps: form.elements.namedItem("weatherAlertGustMps").value,
+        rainProbabilityPct: form.elements.namedItem("weatherAlertRainPct").value,
+        minimumVisibilityKm: form.elements.namedItem("weatherAlertVisibilityKm").value,
+      },
     },
     panels: {
       track: form.elements.namedItem("panelTrack").checked,
@@ -937,6 +1162,12 @@ const locationMap = createLocationMap({
     elements["weather-settings-result"].textContent = "Map location selected and saved.";
     scheduleSettingsSave();
   },
+});
+const briefingLocationMap = createLocationMap({
+  element: elements["briefing-map"],
+  tiles: elements["briefing-map-tiles"],
+  interactive: false,
+  initialZoom: 11,
 });
 function syncLocationMap() {
   const form = elements["settings-form"];
@@ -1069,6 +1300,7 @@ elements["settings-form"].addEventListener("change", (event) => {
     elements["settings-form"].elements.namedItem("weatherEnabled").checked = true;
   }
   if (event.target.name === "rawOutput") updateCleanOutputLink(event.target.checked);
+  if (event.target.name === "weatherAlertsEnabled") updateWeatherAlertInputs();
   if (event.target.id === "settings-stream-key") { updateConnectionLinks(); return; }
   if (event.target.id === "weather-place-query") return;
   scheduleSettingsSave();
@@ -1077,6 +1309,10 @@ elements["settings-form"].addEventListener("input", (event) => {
   if (event.target.id === "settings-stream-key") { updateConnectionLinks(); return; }
   if (event.target.id === "weather-place-query") return;
   scheduleSettingsSave(event.target.type === "text" || event.target.type === "number" ? 250 : 0);
+});
+elements["setup-check"]?.addEventListener("click", async () => {
+  elements["setup-guide-status"].textContent = "Checking the stream server…";
+  await refreshStreamStatus();
 });
 elements["reset-settings"].addEventListener("click", () => {
   try { preferenceStorage?.removeItem(pendingStreamKeyStorageKey); } catch { }

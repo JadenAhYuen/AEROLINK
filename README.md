@@ -39,7 +39,13 @@ or resize it from its lower corner. Its layout saves separately for each feed.
 
 In **Settings → Flight weather**, select your DJI model and search for a place,
 pick a point on the map, or use device location. Turn on **Weather overlay** and
-choose a compact overlay or a side-by-side briefing. Changes save as you make them.
+choose a compact overlay or a side-by-side briefing. The side-by-side view adds
+an hour-by-hour timeline with the previous three hours of model data and the next
+twelve forecast hours, including wind by altitude, gusts, rain probability and
+visibility. A wind-profile chart shows how wind builds with altitude and compares
+it with the selected aircraft limit. Planning cues summarize the calmest forecast
+hour, peak rain chance, wind change from 10 to 120 m, and the next sunrise or sunset.
+Scroll or use the large arrow buttons to move along the timeline. Changes save as you make them.
 Each feed saves its own location and model. Conditions refresh every five minutes
 while enabled.
 

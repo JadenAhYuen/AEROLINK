@@ -73,8 +73,28 @@
           <div class="weather-head" data-overlay-handle="weather" role="button" tabindex="0" aria-label="Move weather overlay with arrow keys"><div><p class="section-kicker">FLIGHT WEATHER</p><h2 id="weather-title"><span id="weather-icon" aria-hidden="true">◌</span><span id="weather-condition">Set location</span></h2></div><span class="weather-status" id="weather-status">NO DATA</span></div>
           <div class="weather-winds"><div><span aria-hidden="true">≋</span><span class="weather-wind-label">WIND</span><strong id="weather-wind">—</strong></div><div><span aria-hidden="true">↝</span><span class="weather-wind-label">GUST</span><strong id="weather-gust">—</strong></div></div>
           <div class="weather-factors" aria-label="Flight weather factors"><div title="Modelled wind at 80 metres"><span>↗ 80 m</span><strong id="weather-wind-80">—</strong></div><div title="Modelled wind at 120 metres"><span>↗ 120 m</span><strong id="weather-wind-120">—</strong></div><div title="Probability of rain in the next forecast hour"><span>☂ Rain</span><strong id="weather-rain">—</strong></div><div title="Modelled horizontal visibility"><span>◉ View</span><strong id="weather-visibility">—</strong></div></div>
+          <div class="weather-expanded" aria-label="Additional weather details"><div><span>↗ DIRECTION</span><strong id="weather-direction">—</strong></div><div><span>° TEMPERATURE</span><strong id="weather-temperature">—</strong></div><div><span>☁ CLOUD</span><strong id="weather-cloud">—</strong></div></div>
           <p class="weather-reason" id="weather-reason"></p>
           <div class="wind-meter" id="wind-meter" role="meter" aria-label="Peak wind compared with selected aircraft wind limit" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="wind-marker"></span></div>
+          <section class="weather-wind-outlook" aria-label="Wind forecast chart">
+            <div class="weather-section-heading"><div><span>WIND PROFILE</span><strong>Wind by altitude</strong></div><small id="weather-wind-chart-range">Hourly · 10–120 m</small></div>
+            <div class="weather-wind-legend"><span><i class="wind-legend-10"></i>10 m</span><span><i class="wind-legend-80"></i>80 m</span><span><i class="wind-legend-120"></i>120 m</span><span><i class="wind-legend-limit"></i><span id="weather-chart-limit-label">Limit</span></span></div>
+            <div class="weather-wind-chart" id="weather-wind-chart"></div>
+          </section>
+          <section class="weather-outlook" aria-label="Planning cues">
+            <div class="weather-section-heading"><div><span>FLIGHT WINDOW</span><strong>Conditions ahead</strong></div><small>Today</small></div>
+            <div class="weather-outlook-grid">
+              <div><span>CALMEST</span><strong id="outlook-calmest">—</strong><small id="outlook-calmest-detail">Waiting for forecast</small></div>
+              <div><span>RAIN PEAK</span><strong id="outlook-rain">—</strong><small id="outlook-rain-detail">Next 12 h</small></div>
+              <div><span>WIND SHIFT</span><strong id="outlook-shear">—</strong><small id="outlook-shear-detail">Surface to 120 m</small></div>
+              <div><span id="outlook-light-label">DAYLIGHT</span><strong id="outlook-light">—</strong><small id="outlook-light-detail">Sunrise / sunset</small></div>
+            </div>
+          </section>
+          <section class="weather-hourly" id="weather-hourly-section" aria-label="Hourly model forecast">
+            <div class="weather-hourly-heading"><strong>Timeline</strong><span id="weather-hourly-range">Past 3 h · next 12 h</span><div class="weather-hourly-actions"><button id="weather-hourly-back" type="button" aria-label="Show earlier hours" title="Earlier hours">‹</button><button id="weather-hourly-forward" type="button" aria-label="Show later hours" title="Later hours">›</button></div></div>
+            <div class="weather-hourly-list" id="weather-hourly-list" role="list" aria-label="Weather by hour"></div>
+            <p class="weather-hourly-note">Past values are model estimates.</p>
+          </section>
           <div class="weather-foot"><span id="weather-model">Select a model</span><span id="weather-age">Waiting</span></div>
           <button class="overlay-resize" data-overlay-resize="weather" type="button" aria-label="Resize weather overlay with arrow keys" title="Drag to resize">⌟</button>
         </section>

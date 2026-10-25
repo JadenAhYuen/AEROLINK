@@ -21,7 +21,7 @@ const elementIds = [
   "track-panel", "identity-section", "signal-metric", "uas-override-badge", "operator-override-badge",
   "settings-rtmp-url", "settings-copy-url", "settings-stream-key", "settings-new-key", "settings-switch-feed", "settings-viewer-url", "telemetry-panel",
   "placeholder-reel-a", "placeholder-reel-b", "welcome-screen", "skip-welcome", "clean-output-note", "clean-output-url", "clean-output-copy", "clean-output-open", "settings-full-rtmp-url",
-  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-wind-80", "weather-wind-120", "weather-rain", "weather-visibility", "weather-reason", "weather-icon", "weather-age", "wind-meter", "wind-marker", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result", "weather-place-query", "weather-place-search", "weather-place-results", "weather-map-details", "weather-map", "weather-map-tiles", "weather-map-zoom-in", "weather-map-zoom-out",
+  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-wind-80", "weather-wind-120", "weather-rain", "weather-visibility", "weather-direction", "weather-temperature", "weather-cloud", "weather-reason", "weather-icon", "weather-age", "wind-meter", "wind-marker", "weather-wind-chart", "weather-wind-chart-range", "weather-chart-limit-label", "outlook-calmest", "outlook-calmest-detail", "outlook-rain", "outlook-rain-detail", "outlook-shear", "outlook-shear-detail", "outlook-light-label", "outlook-light", "outlook-light-detail", "weather-hourly-section", "weather-hourly-range", "weather-hourly-list", "weather-hourly-back", "weather-hourly-forward", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result", "weather-place-query", "weather-place-search", "weather-place-results", "weather-map-details", "weather-map", "weather-map-tiles", "weather-map-zoom-in", "weather-map-zoom-out",
 ];
 
 const elements = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
@@ -175,13 +175,179 @@ function windDisplay(value) {
   return state.preferences.units === "aviation" ? `${(value * 1.94384).toFixed(1)} kt` : `${value.toFixed(1)} m/s`;
 }
 
-function weatherIcon(code) {
+function weatherIcon(code, isDay = true) {
   if (code >= 95) return "⚡";
   if (code >= 51) return "☂";
   if (code === 45 || code === 48) return "≋";
+  if (isDay === false && code <= 1) return "☾";
+  if (isDay === false && code === 2) return "☾";
   if (code === 0 || code === 1) return "☼";
   if (code >= 2) return "☁";
   return "◌";
+}
+
+function renderWindProfile(data, limit) {
+  const host = elements["weather-wind-chart"];
+  const renderKey = `${data?.latitude ?? ""},${data?.longitude ?? ""}:${data?.fetchedAt ?? "empty"}:${limit ?? "unknown"}:${state.preferences.units}`;
+  if (host.dataset.renderKey === renderKey) return;
+  host.dataset.renderKey = renderKey;
+  const windUnit = state.preferences.units === "aviation" ? "kt" : "m/s";
+  elements["weather-wind-chart-range"].textContent = `Hourly model · ${windUnit} · 10–120 m`;
+  elements["weather-chart-limit-label"].textContent = Number.isFinite(limit) ? `Limit ${windDisplay(limit)}` : "No aircraft limit";
+  host.replaceChildren();
+  const hours = Array.isArray(data?.hourly) ? data.hourly : [];
+  if (hours.length < 2) {
+    const empty = document.createElement("p");
+    empty.className = "weather-chart-empty";
+    empty.textContent = data ? "Hourly wind profile is unavailable for this location." : "Choose a location in Settings to load the wind profile.";
+    host.append(empty);
+    return;
+  }
+  const namespace = "http://www.w3.org/2000/svg";
+  const make = (tag, attrs = {}, content = "") => {
+    const node = document.createElementNS(namespace, tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
+    if (content) node.textContent = content;
+    return node;
+  };
+  const svg = make("svg", { viewBox: "0 0 760 194", role: "img", "aria-label": "Hourly wind forecast at 10, 80 and 120 metres with aircraft wind limit" });
+  svg.append(make("title", {}, "Modelled hourly wind by altitude"));
+  const left = 48, right = 748, top = 13, bottom = 154;
+  const allValues = hours.flatMap((hour) => [hour.windMps, hour.wind80Mps, hour.wind120Mps]).filter(Number.isFinite);
+  const rawLimit = Number.isFinite(limit) ? limit : 0;
+  const maximumMps = Math.max(10, rawLimit, ...allValues);
+  const axisMaxMps = Math.ceil(maximumMps / 5) * 5;
+  const factor = state.preferences.units === "aviation" ? 1.94384 : 1;
+  const axisMax = axisMaxMps * factor;
+  const height = bottom - top;
+  const plotX = (index) => left + (hours.length < 2 ? 0 : index / (hours.length - 1)) * (right - left);
+  const plotY = (value) => bottom - (value * factor / axisMax) * height;
+  for (const tick of [0, axisMax / 2, axisMax]) {
+    const y = plotY(tick / factor);
+    svg.append(make("line", { x1: left, x2: right, y1: y, y2: y, class: "chart-grid-line" }));
+    svg.append(make("text", { x: left - 9, y: y + 4, class: "chart-axis-label", "text-anchor": "end" }, `${Math.round(tick)}`));
+  }
+  if (rawLimit > 0) {
+    const limitY = plotY(rawLimit);
+    svg.append(make("line", { x1: left, x2: right, y1: limitY, y2: limitY, class: "chart-limit-line" }));
+  }
+  const nowIndex = hours.reduce((best, hour, index) => Math.abs(Date.parse(hour.time) - Date.now()) < Math.abs(Date.parse(hours[best].time) - Date.now()) ? index : best, 0);
+  const nowX = plotX(nowIndex);
+  svg.append(make("line", { x1: nowX, x2: nowX, y1: top, y2: bottom, class: "chart-now-line" }));
+  const series = [
+    { name: "10 m", field: "windMps", className: "chart-line-10" },
+    { name: "80 m", field: "wind80Mps", className: "chart-line-80" },
+    { name: "120 m", field: "wind120Mps", className: "chart-line-120" },
+  ];
+  for (const line of series) {
+    const points = hours.map((hour, index) => Number.isFinite(hour[line.field]) ? `${plotX(index)},${plotY(hour[line.field])}` : null).filter(Boolean).join(" ");
+    if (points) svg.append(make("polyline", { points, class: `chart-wind-line ${line.className}`, pathLength: 1 }));
+  }
+  for (const index of new Set([0, nowIndex, hours.length - 1])) {
+    const date = new Date(hours[index].time);
+    const label = index === nowIndex ? "NOW" : new Intl.DateTimeFormat(undefined, date.toDateString() === new Date().toDateString() ? { hour: "numeric" } : { weekday: "short", hour: "numeric" }).format(date);
+    svg.append(make("text", { x: plotX(index), y: 181, class: index === nowIndex ? "chart-now-label" : "chart-axis-label", "text-anchor": index === 0 ? "start" : index === hours.length - 1 ? "end" : "middle" }, label));
+  }
+  host.append(svg);
+}
+
+function renderPlanningCues(data) {
+  const hours = Array.isArray(data?.hourly) ? data.hourly : [];
+  const now = Date.now();
+  const upcoming = hours.filter((hour) => Date.parse(hour.time) >= now);
+  const peakWind = (hour) => Math.max(...[hour.windMps, hour.wind80Mps, hour.wind120Mps, hour.gustMps].filter(Number.isFinite));
+  const calmest = upcoming.filter((hour) => Number.isFinite(peakWind(hour))).sort((a, b) => peakWind(a) - peakWind(b))[0];
+  const rainPeak = upcoming.filter((hour) => Number.isFinite(hour.rainProbabilityPct)).sort((a, b) => b.rainProbabilityPct - a.rainProbabilityPct)[0];
+  const timeLabel = (time) => new Intl.DateTimeFormat(undefined, { hour: "numeric" }).format(new Date(time));
+  elements["outlook-calmest"].textContent = calmest ? timeLabel(calmest.time) : "—";
+  elements["outlook-calmest-detail"].textContent = calmest ? `${windDisplay(peakWind(calmest))} peak wind` : "No hourly data";
+  elements["outlook-rain"].textContent = rainPeak ? `${Math.round(rainPeak.rainProbabilityPct)}%` : "—";
+  elements["outlook-rain-detail"].textContent = rainPeak ? `Highest chance · ${timeLabel(rainPeak.time)}` : "No rain probability data";
+  const shear = Number.isFinite(data?.wind120Mps) && Number.isFinite(data?.windMps) ? data.wind120Mps - data.windMps : null;
+  elements["outlook-shear"].textContent = shear === null ? "—" : `${shear > 0 ? "+" : shear < 0 ? "−" : ""}${windDisplay(Math.abs(shear))}`;
+  elements["outlook-shear-detail"].textContent = shear === null ? "Altitude wind unavailable" : shear >= 0 ? "Builds from 10 m to 120 m" : "Eases from 10 m to 120 m";
+  const nowHour = hours.reduce((best, hour) => Math.abs(Date.parse(hour.time) - now) < Math.abs(Date.parse(best.time) - now) ? hour : best, hours[0]);
+  const daylight = data?.isDay ?? nowHour?.isDay;
+  const event = daylight === false ? data?.nextSunrise : data?.nextSunset;
+  elements["outlook-light-label"].textContent = daylight === false ? "NEXT SUNRISE" : "NEXT SUNSET";
+  elements["outlook-light"].textContent = event ? timeLabel(event) : "—";
+  elements["outlook-light-detail"].textContent = event ? "Local time estimate" : "Daylight data unavailable";
+}
+
+function renderHourlyWeather(data, limit) {
+  const list = elements["weather-hourly-list"];
+  const renderKey = `${data?.latitude ?? ""},${data?.longitude ?? ""}:${data?.fetchedAt ?? "empty"}:${limit ?? "unknown"}:${state.preferences.units}`;
+  if (list.dataset.renderKey === renderKey) return;
+  list.dataset.renderKey = renderKey;
+  const previousScroll = list.scrollLeft;
+  const previousKey = list.dataset.locationKey;
+  list.replaceChildren();
+  const hours = Array.isArray(data?.hourly) ? data.hourly : [];
+  const now = Date.now();
+  if (!hours.length) {
+    const empty = document.createElement("p");
+    empty.className = "weather-hourly-empty";
+    empty.textContent = "Hourly forecast unavailable for this location.";
+    list.append(empty);
+    elements["weather-hourly-range"].textContent = "Forecast unavailable";
+    return;
+  }
+  let nowCard = null;
+  const nearestIndex = hours.reduce((best, hour, index) => Math.abs(Date.parse(hour.time) - now) < Math.abs(Date.parse(hours[best].time) - now) ? index : best, 0);
+  for (const [index, hour] of hours.entries()) {
+    const card = document.createElement("article");
+    const timestamp = Date.parse(hour.time);
+    const date = new Date(timestamp);
+    const ratingKnown = Number.isFinite(limit) && limit > 0;
+    const peak = Math.max(...[hour.windMps, hour.wind80Mps, hour.wind120Mps, hour.gustMps].filter(Number.isFinite));
+    const caution = !ratingKnown || (Number.isFinite(hour.rainProbabilityPct) && hour.rainProbabilityPct >= 60) || (Number.isFinite(hour.visibilityM) && hour.visibilityM < 3000) || ![hour.windMps, hour.wind80Mps, hour.wind120Mps, hour.visibilityM, hour.rainProbabilityPct, hour.weatherCode].every(Number.isFinite);
+    const noGo = (ratingKnown && peak >= limit) || (Number.isFinite(hour.visibilityM) && hour.visibilityM < 1000) || (Number.isFinite(hour.weatherCode) && ([45, 48].includes(hour.weatherCode) || hour.weatherCode >= 51));
+    card.className = "weather-hour-card";
+    card.dataset.level = !ratingKnown ? "unknown" : noGo ? "no-go" : caution ? "caution" : "favourable";
+    card.setAttribute("role", "listitem");
+    const label = document.createElement("div");
+    label.className = "weather-hour-label";
+    const timeLabel = document.createElement("span");
+    const crossesDay = date.toDateString() !== new Date(now).toDateString();
+    timeLabel.textContent = index === nearestIndex ? "NOW" : new Intl.DateTimeFormat(undefined, crossesDay ? { weekday: "short", hour: "numeric" } : { hour: "numeric" }).format(date);
+    const riskLabel = document.createElement("span");
+    riskLabel.className = "weather-hour-risk";
+    riskLabel.textContent = !ratingKnown ? "SET LIMIT" : noGo ? "LIMIT" : caution ? "CAUTION" : "LOW";
+    label.append(timeLabel, riskLabel);
+    if (index === nearestIndex) { card.classList.add("is-now"); nowCard = card; }
+    if (timestamp < now - 45 * 60_000) card.classList.add("is-past");
+    const condition = document.createElement("div");
+    condition.className = "weather-hour-condition";
+    condition.textContent = `${weatherIcon(hour.weatherCode, hour.isDay)} ${hour.isDay === false ? "Night · " : ""}${weatherDescription(hour.weatherCode)}`;
+    const winds = document.createElement("div");
+    winds.className = "weather-hour-winds";
+    for (const [name, value] of [["10m", hour.windMps], ["80m", hour.wind80Mps], ["120m", hour.wind120Mps]]) {
+      const metric = document.createElement("div");
+      const nameNode = document.createElement("span");
+      nameNode.textContent = name;
+      const strong = document.createElement("strong");
+      strong.textContent = Number.isFinite(value) ? windDisplay(value) : "—";
+      metric.append(nameNode, strong);
+      winds.append(metric);
+    }
+    const details = document.createElement("div");
+    details.className = "weather-hour-details";
+    for (const [name, value] of [["GUST", Number.isFinite(hour.gustMps) ? windDisplay(hour.gustMps) : "—"], ["RAIN", Number.isFinite(hour.rainProbabilityPct) ? `${hour.rainProbabilityPct}%` : "—"], ["VIS", Number.isFinite(hour.visibilityM) ? `${(hour.visibilityM / 1000).toFixed(1)} km` : "—"]]) {
+      const metric = document.createElement("div");
+      const labelNode = document.createElement("span");
+      labelNode.textContent = name;
+      const valueNode = document.createElement("strong");
+      valueNode.textContent = value;
+      metric.append(labelNode, valueNode);
+      details.append(metric);
+    }
+    card.append(label, condition, winds, details);
+    list.append(card);
+  }
+  elements["weather-hourly-range"].textContent = "Past 3 h · next 12 h";
+  list.dataset.locationKey = weatherLocationKey(state.preferences) ?? "";
+  if (previousKey !== list.dataset.locationKey && nowCard) list.scrollLeft = nowCard.offsetLeft - list.offsetLeft - (list.clientWidth - nowCard.clientWidth) / 2;
+  else list.scrollLeft = previousScroll;
 }
 
 function renderWeather() {
@@ -198,14 +364,21 @@ function renderWeather() {
   elements["weather-status"].textContent = { favourable: "LOW RISK*", caution: "CAUTION", "no-go": "DO NOT FLY", unknown: key ? state.weatherError || "NO DATA" : "SET LOCATION" }[level];
   elements["weather-condition"].textContent = data ? weatherDescription(data.weatherCode) : key ? "Weather unavailable" : "Set location";
   elements["weather-reason"].textContent = assessment?.reason ?? (key ? "Weather unavailable. Check Settings." : "Choose a weather location in Settings.");
-  elements["weather-icon"].textContent = data ? weatherIcon(data.weatherCode) : "◌";
+  elements["weather-icon"].textContent = data ? weatherIcon(data.weatherCode, data.isDay) : "◌";
   elements["weather-wind"].textContent = windDisplay(data?.windMps);
   elements["weather-gust"].textContent = windDisplay(data?.gustMps);
   elements["weather-wind-80"].textContent = windDisplay(data?.wind80Mps);
   elements["weather-wind-120"].textContent = windDisplay(data?.wind120Mps);
   elements["weather-rain"].textContent = Number.isFinite(data?.rainProbabilityPct) ? `${data.rainProbabilityPct}%` : "—";
   elements["weather-visibility"].textContent = Number.isFinite(data?.visibilityM) ? `${(data.visibilityM / 1000).toFixed(1)} km` : "—";
+  const direction = Number.isFinite(data?.directionDeg) ? Math.round(data.directionDeg / 22.5) % 16 : null;
+  elements["weather-direction"].textContent = direction === null ? "—" : `${["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"][direction]} · ${Math.round(data.directionDeg)}°`;
+  elements["weather-temperature"].textContent = Number.isFinite(data?.temperatureC) ? `${data.temperatureC.toFixed(1)}°C` : "—";
+  elements["weather-cloud"].textContent = Number.isFinite(data?.cloudCoverPct) ? `${Math.round(data.cloudCoverPct)}%` : "—";
   const limit = assessment?.limitMps ?? profile.maxWindMps;
+  renderWindProfile(data, limit);
+  renderPlanningCues(data);
+  renderHourlyWeather(data, limit);
   const ratio = data && Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.max(0, Math.max(data.windMps, data.gustMps, ...[data.wind80Mps, data.wind120Mps].filter(Number.isFinite)) / limit * 100)) : null;
   elements["wind-meter"].classList.toggle("empty", ratio === null || level === "unknown");
   elements["wind-meter"].setAttribute("aria-valuenow", ratio === null || level === "unknown" ? "0" : String(Math.round(ratio)));
@@ -213,6 +386,9 @@ function renderWeather() {
   elements["wind-marker"].style.left = `${ratio ?? 0}%`;
   elements["weather-age"].textContent = data ? `Updated ${Math.max(0, Math.floor((Date.now() - Date.parse(data.fetchedAt)) / 60_000))}m ago` : "Check Settings";
 }
+
+elements["weather-hourly-back"].addEventListener("click", () => elements["weather-hourly-list"].scrollBy({ left: -540, behavior: "smooth" }));
+elements["weather-hourly-forward"].addEventListener("click", () => elements["weather-hourly-list"].scrollBy({ left: 540, behavior: "smooth" }));
 
 async function refreshWeather({ force = false, coordinates = null } = {}) {
   const prefs = state.preferences;
@@ -889,6 +1065,9 @@ elements["settings-form"].addEventListener("submit", (event) => {
   scheduleSettingsSave();
 });
 elements["settings-form"].addEventListener("change", (event) => {
+  if (event.target.name === "weatherDisplay" && event.target.value === "split") {
+    elements["settings-form"].elements.namedItem("weatherEnabled").checked = true;
+  }
   if (event.target.name === "rawOutput") updateCleanOutputLink(event.target.checked);
   if (event.target.id === "settings-stream-key") { updateConnectionLinks(); return; }
   if (event.target.id === "weather-place-query") return;

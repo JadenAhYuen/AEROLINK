@@ -7,7 +7,11 @@ modelled at 10, 80 and 120 m above ground; gusts are supplied for 10 m only.
 They cannot represent wind at the aircraft's exact position, near obstacles,
 or a sudden local gust. Rain probability is for the next available forecast
 hour and visibility is a model estimate, not a direct visual-line-of-sight
-measurement. The app refreshes every five minutes;
+measurement. The side-by-side view includes the previous three hourly model
+values and the next twelve forecast hours. Past values are model history, not
+on-site observations. The side-by-side briefing plots wind at three heights,
+shows the aircraft limit when known, and surfaces the calmest hour, highest rain
+chance, wind change with altitude, and the next daylight transition. The app refreshes every five minutes;
 weather older than 30 minutes produces no assessment.
 Place search uses Open-Meteo's geocoding service, whose location data is based
 on GeoNames. Selecting a place fills its coordinates; a named city is a broad

@@ -2,27 +2,29 @@
 
 <img src="public/assets/aerolink-mark.svg" width="72" alt="AEROLINK logo">
 
-**A quiet, local RTMP flight viewer for DJI Fly and other RTMP publishers.**
+**A quiet, local RTMP flight viewer for compatible cameras and controllers.**
 
 [Download for Windows](https://github.com/JadenAhYuen/AEROLINK/releases/latest)
 · [Build status](https://github.com/JadenAhYuen/AEROLINK/actions/workflows/release.yml)
 
 > AEROLINK is a secondary monitor, not a flight-control system. Always pilot
-> from the approved DJI controller, maintain visual line of sight, and follow
+> from your approved controller, maintain visual line of sight, and follow
 > applicable aviation and privacy rules.
 
 ## Preview
 
-![AEROLINK welcome screen](docs/assets/aerolink-interface.jpg)
+![AEROLINK viewer waiting for a stream](docs/assets/aerolink-interface.jpg)
 
 The viewer starts with an optional, skippable welcome transition, then presents
 a full-screen camera canvas. When a feed connects, the header fades away; move
 the pointer over its position to bring it back. Telemetry and the flight track
-are off by default and can be deliberately enabled in Settings.
+are off by default and can be deliberately enabled in Settings. New feeds start
+without a drone model or location selected. Drag each overlay by its heading,
+or resize it from its lower corner. Its layout saves separately for each feed.
 
 ## What it does
 
-- Ingests RTMP from DJI Fly or another compatible RTMP/H.264 publisher.
+- Ingests RTMP from a compatible RTMP/H.264 publisher.
 - Plays the stream in the browser through MediaMTX WebRTC.
 - Uses separate, generated stream keys for multiple aircraft.
 - Keeps an RTMP server link, stream key, and complete address clearly separated in Settings.
@@ -35,8 +37,8 @@ are off by default and can be deliberately enabled in Settings.
 
 ## Flight weather
 
-In **Settings → Flight weather**, select a DJI model and search for a city or
-postal code. Select a result, turn on **Weather overlay**, then choose **Done**.
+In **Settings → Flight weather**, select your aircraft model and search for a city or
+postal code. Select a result and turn on **Weather overlay**. Changes save as you make them.
 You can also use device location where the browser permits it or enter exact
 coordinates. Each feed saves its own location and model. The compact panel
 shows conditions, wind, gusts, a graded wind-limit scale and the last update
@@ -44,10 +46,10 @@ time. It refreshes every five minutes while enabled.
 
 The estimate uses Open-Meteo's modelled conditions near the requested point,
 including wind and gusts at **10 m**. It is not a measurement at the aircraft or
-at its flight altitude. The result combines weather with the selected DJI
-model's published maximum wind resistance and an optional lower pilot limit.
-DJI lists the Lito X1's maximum wind resistance as 10.7 m/s. A favourable
-result is not a flight clearance. Wind can change at any
+at its flight altitude. For listed DJI models, the result combines weather with
+the published maximum wind resistance and an optional lower pilot limit. For
+other aircraft, choose **Other aircraft** and enter a conservative pilot limit.
+A favourable result is not a flight clearance. Wind can change at any
 time. Check conditions on site and fly within the aircraft manual and local rules.
 
 Weather requires internet access. Place search, enabling the overlay or checking conditions
@@ -79,7 +81,7 @@ Open the dashboard at `http://<laptop-ip>:3000`.
 
 ## Connect a camera
 
-1. Open **Settings** in AEROLINK.
+1. Open **Settings** in AEROLINK. Changes save as you make them; choose **Close** when finished.
 2. For separate fields, enter **RTMP server link** as the server and **stream key**
    as the key. For one address field, use the complete address shown below them.
    For example, server `rtmp://192.168.1.44` plus key `drone-1xpryk` produces
@@ -130,8 +132,8 @@ ffmpeg -re -f lavfi -i testsrc2=size=1280x720:rate=30 `
 
 ## Compatibility
 
-AEROLINK accepts any local RTMP/H.264 publisher; it is not tied to DJI RC 2.
-Whether a DJI setup can publish RTMP depends on the aircraft, controller, DJI
+AEROLINK accepts any local RTMP/H.264 publisher. Whether a DJI setup can
+publish RTMP depends on the aircraft, controller, DJI
 Fly version, and firmware. Confirm your exact combination in DJI’s current
 [DJI Fly livestream guide](https://repair.dji.com/help/content?customId=01700006727&lang=en&paperDocType=ARTICLE&re=US&spaceId=17).
 

@@ -1,18 +1,16 @@
-# AEROLINK 0.4.0
+# AEROLINK 0.5.0
 
 Windows portable distribution: extract the complete ZIP, then open AEROLINK.exe.
 Keep the launcher open during use; closing it stops the services it started.
 No separate Node.js or Docker installation is required.
 
-- Compact flight weather overlay with wind, gusts, condition icon, status,
-  update age and a graded scale against the selected drone's wind limit.
-- Search for a place in Settings, use device location where supported, or
-  enter coordinates. Weather refreshes every five minutes while enabled.
-- The Lito X1 now uses DJI's published 10.7 m/s maximum wind resistance.
-- Windows releases include seven verified waiting videos. Local builds include
-  the videos present in the project's media folder.
-- The launcher checks GitHub for updates and can download, verify and open a
-  new version while keeping the old installation available.
+- New feeds begin with no drone model or location selected, and neutral camera
+  and controller guidance. Other aircraft can use a pilot-set wind limit.
+- Weather, telemetry and flight-track overlays can each be dragged and resized.
+  Their positions save for each feed and adapt to smaller screens.
+- Settings save while you edit; Close simply dismisses the panel. A reset action
+  restores default overlay positions.
+- The stream key being prepared is retained when Settings is closed.
 
 Weather is an approximate model estimate, not an on-site or altitude-specific
 measurement or a clearance to fly. Internet access is required. Open-Meteo's

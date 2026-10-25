@@ -22,6 +22,7 @@ export function assessWeather(weather, modelId, pilotLimitMps = null, now = Date
   if ([45, 48].includes(weather.weatherCode)) return { level: "no-go", label: "Do not fly · Weather", reason: "Fog indicated. Visibility and moisture are concerns." };
   if (weather.precipitationMm > 0 || weather.weatherCode >= 51) return { level: "no-go", label: "Do not fly · Weather", reason: "Rain, drizzle, snow or freezing precipitation indicated." };
   const profile = droneProfile(modelId);
+  if (profile.id === "none") return unknown("Choose a drone model in Settings before using the wind assessment.");
   const pilot = typeof pilotLimitMps === "number" && Number.isFinite(pilotLimitMps) && pilotLimitMps > 0 ? pilotLimitMps : null;
   const limit = profile.maxWindMps === null ? pilot : Math.min(profile.maxWindMps, pilot ?? Infinity);
   if (limit === null) return unknown("Aircraft wind rating is unverified. Set a conservative pilot limit in Settings.");

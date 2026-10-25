@@ -15,11 +15,12 @@ test("preference defaults favor the daylight appearance and metric flight data",
     theme: "light",
     accent: "blue",
     units: "metric",
-    aircraftName: "Lito X1",
+    aircraftName: "Aircraft",
     uasId: "",
     operatorId: "",
-    droneModel: "lito-x1",
+    droneModel: "none",
     weather: { enabled: false, latitude: null, longitude: null, pilotLimitMps: null },
+    overlayLayout: { weather: null, telemetry: null, track: null },
     panels: {
       track: false,
       overlay: false,
@@ -48,8 +49,9 @@ test("normalizePreferences accepts known choices and trims dashboard identity ov
       aircraftName: "Survey One",
       uasId: "1581F-test",
       operatorId: "MUS-OP-001",
-      droneModel: "lito-x1",
+      droneModel: "none",
       weather: { enabled: false, latitude: null, longitude: null, pilotLimitMps: null },
+      overlayLayout: { weather: null, telemetry: null, track: null },
       panels: { track: false, overlay: false, identity: true, signal: false, rawOutput: false },
     },
   );
@@ -73,6 +75,13 @@ test("normalizePreferences rejects unknown enum values and limits free text", ()
   assert.equal(preferences.uasId, "");
   assert.equal(preferences.operatorId, "");
   assert.deepEqual(preferences.panels, { track: false, overlay: false, identity: false, signal: true, rawOutput: false });
+});
+
+test("overlay layout is saved per feed and invalid geometry is ignored", () => {
+  const valid = normalizePreferences({ overlayLayout: { weather: { x: 120, y: 96, width: 300, height: 190 } } });
+  assert.deepEqual(valid.overlayLayout.weather, { x: 120, y: 96, width: 300, height: 190 });
+  assert.equal(valid.overlayLayout.track, null);
+  assert.equal(normalizePreferences({ overlayLayout: { weather: { x: -10, y: 0, width: 300, height: 190 } } }).overlayLayout.weather, null);
 });
 
 test("dashboard ID overrides take precedence without changing received telemetry", () => {

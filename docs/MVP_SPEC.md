@@ -1,10 +1,10 @@
-# DJI Lito Dashboard MVP
+# AEROLINK MVP
 
 ## Goal
 
-Provide a local, secondary monitoring display for a DJI Lito X1 and RC 2. The
-display combines the RC 2's RTMP camera stream with the aircraft's available
-Remote ID data in one laptop- and tablet-friendly dashboard.
+Provide a local, secondary monitoring display for compatible RTMP publishers.
+The display combines the camera stream with optional receiver telemetry in one
+laptop- and tablet-friendly dashboard.
 
 ## Locked decisions
 
@@ -37,14 +37,14 @@ The dashboard must make these answers immediately visible:
   "timestamp": "2026-10-25T08:30:00.000Z",
   "source": "remote-id",
   "uasId": "1581F...",
-  "operatorId": "MUS...",
-  "latitude": -20.1612,
-  "longitude": 57.4989,
+  "operatorId": "OP-EXAMPLE",
+  "latitude": 52.52,
+  "longitude": 13.405,
   "heightM": 42.5,
   "groundSpeedMps": 8.2,
   "courseDeg": 134,
-  "homeLatitude": -20.162,
-  "homeLongitude": 57.4977,
+  "homeLatitude": 52.519,
+  "homeLongitude": 13.404,
   "rssiDbm": -58
 }
 ```

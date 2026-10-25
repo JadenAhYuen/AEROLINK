@@ -18,7 +18,7 @@ namespace Aerolink {
     private Process gateway, dashboard;
     private bool busy;
     private bool smokeTest;
-    private const string CurrentVersion = "0.4.0";
+    private const string CurrentVersion = "0.5.0";
     private string updateVersion, updateZipUrl, updateHashUrl;
     private string address;
     private Label status, detail;

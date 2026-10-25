@@ -266,3 +266,19 @@ body.video-live .topbar:hover,body.video-live .topbar:focus-within { opacity:1; 
 .weather-foot{display:flex;justify-content:space-between;gap:10px;color:rgba(239,246,242,.65);font-size:.58rem}.weather-foot span:last-child{white-space:nowrap}
 .weather-search-controls{display:flex;gap:6px;min-width:0}.weather-search-controls input{min-width:0;flex:1}.weather-place-results{display:grid;gap:4px;color:var(--muted);font-size:.68rem}.weather-place-option{width:100%;padding:8px 10px;text-align:left;border:1px solid var(--rule);border-radius:5px;background:var(--paper);cursor:pointer}.weather-place-option:hover,.weather-place-option:focus-visible{border-color:var(--accent);background:rgba(var(--accent-rgb),.08)}
 @media(max-width:700px){.flight-overlays{width:min(300px,calc(100% - 16px))}}
+
+/* Each overlay is its own movable viewport panel. */
+.flight-overlays{display:contents}
+.flight-overlays .weather-panel,.flight-overlays .telemetry-panel,.track-panel{position:fixed;right:auto;bottom:auto;left:var(--overlay-x,auto);top:var(--overlay-y,auto);width:var(--overlay-width,300px);height:var(--overlay-height,auto);min-width:min(220px,calc(100vw - 16px));min-height:120px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;resize:none;z-index:20}
+.flight-overlays .telemetry-panel{flex:none}
+.track-panel{display:flex;flex-direction:column;min-height:150px}
+.track-panel .track-stage{flex:1;min-height:80px;height:auto}
+.weather-head[data-overlay-handle],.panel-heading[data-overlay-handle]{cursor:grab;touch-action:none;user-select:none}
+.weather-head[data-overlay-handle]:active,.panel-heading[data-overlay-handle]:active{cursor:grabbing}
+[data-overlay-handle]:focus-visible,.overlay-resize:focus-visible{outline:2px solid #b1d9ff;outline-offset:-3px}
+.overlay-resize{position:absolute;right:3px;bottom:3px;z-index:3;width:27px;height:27px;padding:0;color:rgba(245,250,248,.74);border:0;border-radius:4px;background:rgba(255,255,255,.08);font-size:1.1rem;line-height:1;cursor:nwse-resize;touch-action:none}
+.overlay-resize:hover{color:#fff;background:rgba(255,255,255,.18)}
+.weather-panel .weather-foot{padding-right:20px}
+.layout-reset{margin-top:12px;min-height:34px;padding:0 10px}
+.sheet-header{grid-template-columns:75px 1fr 116px}.settings-saved{justify-self:end;color:var(--muted);font-size:.59rem;line-height:1.2;text-align:right}
+@media(max-width:700px){.track-panel{display:flex}.sheet-header{grid-template-columns:60px 1fr 82px}.settings-saved{font-size:.53rem}}

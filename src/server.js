@@ -208,6 +208,7 @@ async function serveStatic(requestPath, request, response) {
     if (request.method === "HEAD" || file.size === 0) response.end();
     else await pipeline(createReadStream(resolvedPath, { start, end }), response);
   } catch (error) {
+    if ((error.code === "ERR_STREAM_PREMATURE_CLOSE" || error.code === "ECONNRESET") && (response.destroyed || request.aborted)) return;
     if (error.code === "ENOENT" || error.code === "EISDIR") {
       sendJson(response, 404, { error: "not found" });
       return;

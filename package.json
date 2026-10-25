@@ -1,9 +1,9 @@
 {
   "name": "aerolink",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "Local low-latency DJI RTMP and Remote ID dashboard",
+  "description": "Local low-latency RTMP flight viewer and optional weather dashboard",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",

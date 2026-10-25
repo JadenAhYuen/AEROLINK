@@ -16,7 +16,7 @@ const elementIds = [
   "course-value", "course-arrow", "bearing-value", "signal-value", "uas-id", "operator-id",
   "position-value", "demo-button", "demo-label", "telemetry-endpoint", "track-line",
   "aircraft-marker", "track-empty", "scale-label", "toast", "aircraft-name", "settings-button",
-  "settings-dialog", "settings-form", "settings-cancel", "reset-settings", "edit-identity",
+  "settings-dialog", "settings-form", "settings-close", "settings-saved", "reset-settings", "reset-overlay-layout", "edit-identity",
   "track-panel", "identity-section", "signal-metric", "uas-override-badge", "operator-override-badge",
   "settings-rtmp-url", "settings-copy-url", "settings-stream-key", "settings-new-key", "settings-switch-feed", "settings-viewer-url", "telemetry-panel",
   "placeholder-reel-a", "placeholder-reel-b", "welcome-screen", "skip-welcome", "clean-output-note", "clean-output-url", "clean-output-copy", "clean-output-open", "settings-full-rtmp-url",
@@ -45,6 +45,7 @@ function randomStreamKey() {
 }
 
 const preferencesStorageKey = `aerolink-preferences:${currentStreamKey()}`;
+const pendingStreamKeyStorageKey = `aerolink-pending-stream:${currentStreamKey()}`;
 let preferenceStorage;
 try {
   preferenceStorage = window.localStorage;
@@ -66,6 +67,99 @@ const state = {
   weatherError: null,
   weatherRequest: 0,
 };
+
+const overlayPanels = {
+  weather: elements["weather-panel"], telemetry: elements["telemetry-panel"], track: elements["track-panel"],
+};
+const clamp = (value, low, high) => Math.max(low, Math.min(value, high));
+
+function panelBounds(name, entry = null) {
+  const viewportWidth = window.innerWidth, viewportHeight = window.innerHeight;
+  const compact = viewportWidth <= 700;
+  const margin = compact ? 8 : 22;
+  const top = compact ? 76 : 94;
+  const minimumHeight = name === "track" ? 150 : 120;
+  const defaultWidth = compact ? name === "track" ? 240 : 280 : name === "weather" ? 300 : name === "telemetry" ? 350 : 340;
+  const width = clamp(entry?.width ?? defaultWidth, Math.min(220, viewportWidth - 16), viewportWidth - 16);
+  const trackY = viewportHeight - (compact ? 175 : 275);
+  const initialY = name === "weather" ? top : name === "telemetry" ? top + (state.preferences.weather.enabled ? 202 : 0) : trackY;
+  const compactTelemetryHeight = state.preferences.panels.track ? clamp(trackY - initialY - 12, 120, 250) : 250;
+  const defaultHeight = name === "weather" ? 190 : name === "telemetry" ? compact ? compactTelemetryHeight : 480 : compact ? 165 : 255;
+  const y = clamp(entry?.y ?? initialY, 8, Math.max(8, viewportHeight - minimumHeight - 8));
+  const height = clamp(entry?.height ?? defaultHeight, minimumHeight, Math.max(minimumHeight, viewportHeight - y - 8));
+  const x = clamp(entry?.x ?? (name === "track" ? margin : viewportWidth - width - margin), 8, viewportWidth - width - 8);
+  return { x, y, width, height };
+}
+
+function setPanelBounds(panel, bounds) {
+  panel.style.setProperty("--overlay-x", `${bounds.x}px`);
+  panel.style.setProperty("--overlay-y", `${bounds.y}px`);
+  panel.style.setProperty("--overlay-width", `${bounds.width}px`);
+  panel.style.setProperty("--overlay-height", `${bounds.height}px`);
+}
+
+function applyOverlayLayout() {
+  for (const [name, panel] of Object.entries(overlayPanels)) {
+    setPanelBounds(panel, panelBounds(name, state.preferences.overlayLayout[name]));
+  }
+}
+
+function storeOverlayBounds(name) {
+  const rect = overlayPanels[name].getBoundingClientRect();
+  const entry = panelBounds(name, { x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+  try {
+    state.savedPreferences = savePreferences(preferenceStorage, {
+      ...state.savedPreferences,
+      overlayLayout: { ...state.savedPreferences.overlayLayout, [name]: entry },
+    }, preferencesStorageKey);
+    state.preferences = state.savedPreferences;
+  } catch { showToast("Overlay position could not be saved"); }
+  applyOverlayLayout();
+}
+
+for (const [name, panel] of Object.entries(overlayPanels)) {
+  for (const kind of ["handle", "resize"]) {
+    const control = panel.querySelector(`[data-overlay-${kind}="${name}"]`);
+    control.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const start = panel.getBoundingClientRect();
+      const originX = event.clientX, originY = event.clientY;
+      panel.style.zIndex = "25";
+      control.setPointerCapture(event.pointerId);
+      const move = (next) => {
+        const dx = next.clientX - originX, dy = next.clientY - originY;
+        const proposed = kind === "handle"
+          ? { x: start.left + dx, y: start.top + dy, width: start.width, height: start.height }
+          : { x: start.left, y: start.top, width: start.width + dx, height: start.height + dy };
+        setPanelBounds(panel, panelBounds(name, proposed));
+      };
+      const finish = () => {
+        control.removeEventListener("pointermove", move);
+        control.removeEventListener("pointerup", finish);
+        control.removeEventListener("pointercancel", finish);
+        panel.style.zIndex = "";
+        storeOverlayBounds(name);
+      };
+      control.addEventListener("pointermove", move);
+      control.addEventListener("pointerup", finish);
+      control.addEventListener("pointercancel", finish);
+    });
+    control.addEventListener("keydown", (event) => {
+      const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      const rect = panel.getBoundingClientRect();
+      const step = event.shiftKey ? 32 : 8;
+      const proposed = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+      if (kind === "handle") { proposed.x += delta[0] * step; proposed.y += delta[1] * step; }
+      else { proposed.width += delta[0] * step; proposed.height += delta[1] * step; }
+      setPanelBounds(panel, panelBounds(name, proposed));
+      storeOverlayBounds(name);
+    });
+  }
+}
+window.addEventListener("resize", applyOverlayLayout);
 
 for (const profile of DRONE_PROFILES) elements["drone-model"].add(new Option(profile.name, profile.id));
 elements["weather-disclaimer"].textContent = WEATHER_DISCLAIMER;
@@ -299,6 +393,7 @@ function applyPreferences(preferences, { renderData = true } = {}) {
   elements["telemetry-panel"]?.classList.toggle("preference-hidden", !normalized.panels.overlay);
   state.preferences = normalized;
   renderWeather();
+  applyOverlayLayout();
   elements["identity-section"].classList.toggle("preference-hidden", !normalized.panels.identity);
   elements["signal-metric"].classList.toggle("preference-hidden", !normalized.panels.signal);
   document.documentElement.classList.toggle("clean-output", cleanOutputEnabled());
@@ -512,7 +607,8 @@ function fillSettings(preferences) {
   form.elements.namedItem("panelSignal").checked = normalized.panels.signal;
   form.elements.namedItem("rawOutput").checked = normalized.panels.rawOutput || cleanOutputEnabled();
   updateCleanOutputLink(form.elements.namedItem("rawOutput").checked);
-  elements["settings-stream-key"].value = currentStreamKey();
+  const pendingKey = preferenceStorage?.getItem(pendingStreamKeyStorageKey)?.toLowerCase();
+  elements["settings-stream-key"].value = pendingKey && streamKeyPattern.test(pendingKey) ? pendingKey : currentStreamKey();
   const viewerUrl = new URL(window.location.href);
   viewerUrl.searchParams.set("stream", currentStreamKey());
   viewerUrl.searchParams.delete("output");
@@ -557,6 +653,7 @@ function preferencesFromForm() {
     uasId: form.elements.namedItem("uasId").value,
     operatorId: form.elements.namedItem("operatorId").value,
     droneModel: form.elements.namedItem("droneModel").value,
+    overlayLayout: state.savedPreferences.overlayLayout,
     weather: {
       enabled: form.elements.namedItem("weatherEnabled").checked,
       latitude: form.elements.namedItem("weatherLatitude").value,
@@ -575,34 +672,45 @@ function preferencesFromForm() {
 
 function openSettings(focusIdentity = false) {
   fillSettings(state.savedPreferences);
+  elements["settings-saved"].textContent = "Changes save automatically";
   elements["settings-dialog"].showModal();
   if (focusIdentity) requestAnimationFrame(() => elements["settings-form"].elements.namedItem("uasId").focus());
 }
 
 function updateWeatherModelNote() {
   const profile = droneProfile(elements["drone-model"].value);
-  elements["weather-model-note"].textContent = profile.maxWindMps === null
-    ? `${profile.name}: DJI wind rating not verified. Set a conservative pilot limit; the result will remain Caution at best.`
+  elements["weather-model-note"].textContent = profile.id === "none"
+    ? "Select your aircraft model to compare wind against its rating. Choose Other aircraft if it is not listed."
+    : profile.maxWindMps === null
+    ? "Enter a conservative pilot wind limit for this aircraft. Without a verified manufacturer rating, the result remains Caution at best."
     : `${profile.name}: DJI published maximum wind resistance ${profile.maxWindMps} m/s. A lower pilot limit takes precedence.`;
 }
 
-function cancelSettings() {
-  applyPreferences(state.savedPreferences);
+function closeSettings() {
+  if (settingsSaveTimer) { clearTimeout(settingsSaveTimer); settingsSaveTimer = null; persistSettings(); }
   elements["settings-dialog"].close();
 }
 
-function saveSettings() {
+let settingsSaveTimer = null;
+function persistSettings() {
+  const form = elements["settings-form"];
+  if (!form.checkValidity()) { elements["settings-saved"].textContent = "Check highlighted fields"; return; }
   try {
     if (!preferenceStorage) throw new Error("Storage unavailable");
     state.preferences = savePreferences(preferenceStorage, preferencesFromForm(), preferencesStorageKey);
     state.savedPreferences = state.preferences;
     applyPreferences(state.preferences);
     refreshWeather().catch(() => {});
-    elements["settings-dialog"].close();
-    showToast("Dashboard settings saved on this device");
+    elements["settings-saved"].textContent = "Saved on this device";
   } catch {
-    showToast("Settings could not be saved in this browser");
+    elements["settings-saved"].textContent = "Could not save";
   }
+}
+
+function scheduleSettingsSave(delay = 0) {
+  if (settingsSaveTimer) clearTimeout(settingsSaveTimer);
+  elements["settings-saved"].textContent = "Saving…";
+  settingsSaveTimer = setTimeout(() => { settingsSaveTimer = null; persistSettings(); }, delay);
 }
 
 async function initialize() {
@@ -656,8 +764,9 @@ elements["weather-place-search"].addEventListener("click", async () => {
         const form = elements["settings-form"];
         form.elements.namedItem("weatherLatitude").value = place.latitude;
         form.elements.namedItem("weatherLongitude").value = place.longitude;
-        elements["weather-settings-result"].textContent = `${button.textContent} selected. Choose Done to save, or check conditions now.`;
+        elements["weather-settings-result"].textContent = `${button.textContent} selected and saved. Weather will refresh if the overlay is enabled.`;
         results.replaceChildren();
+        scheduleSettingsSave();
       });
       results.append(button);
     }
@@ -673,7 +782,8 @@ elements["weather-use-location"].addEventListener("click", () => {
   navigator.geolocation.getCurrentPosition((position) => {
     elements["settings-form"].elements.namedItem("weatherLatitude").value = position.coords.latitude.toFixed(6);
     elements["settings-form"].elements.namedItem("weatherLongitude").value = position.coords.longitude.toFixed(6);
-    status.textContent = "Location filled. Choose Done to save, or check conditions now.";
+    status.textContent = "Location selected and saved.";
+    scheduleSettingsSave();
   }, () => { status.textContent = "Device location unavailable here. Enter coordinates manually."; }, { enableHighAccuracy: true, timeout: 10_000 });
 });
 elements["weather-check"].addEventListener("click", async () => {
@@ -718,9 +828,16 @@ elements["clean-output-copy"].addEventListener("click", async () => {
 });
 elements["settings-new-key"].addEventListener("click", () => {
   elements["settings-stream-key"].value = randomStreamKey();
+  try { preferenceStorage?.setItem(pendingStreamKeyStorageKey, elements["settings-stream-key"].value); } catch { }
   updateConnectionLinks();
 });
-elements["settings-stream-key"].addEventListener("input", updateConnectionLinks);
+elements["settings-stream-key"].addEventListener("input", () => {
+  const key = elements["settings-stream-key"].value.trim().toLowerCase();
+  if (streamKeyPattern.test(key)) {
+    try { preferenceStorage?.setItem(pendingStreamKeyStorageKey, key); } catch { }
+  }
+  updateConnectionLinks();
+});
 elements["settings-switch-feed"].addEventListener("click", () => {
   const streamKey = elements["settings-stream-key"].value.trim().toLowerCase();
   if (!streamKeyPattern.test(streamKey)) {
@@ -736,28 +853,43 @@ elements["reload-video"].addEventListener("click", reloadVideo);
 elements["demo-button"].addEventListener("click", () => toggleSimulator().catch(() => showToast("Could not change demo state")));
 elements["settings-button"].addEventListener("click", () => openSettings());
 elements["edit-identity"].addEventListener("click", () => openSettings(true));
-elements["settings-cancel"].addEventListener("click", cancelSettings);
+elements["settings-close"].addEventListener("click", closeSettings);
 elements["settings-form"].addEventListener("submit", (event) => {
   event.preventDefault();
-  saveSettings();
+  scheduleSettingsSave();
 });
 elements["settings-form"].addEventListener("change", (event) => {
   if (event.target.name === "rawOutput") updateCleanOutputLink(event.target.checked);
-  if (["theme", "accent", "units", "panelOverlay", "panelTrack", "panelIdentity", "panelSignal"].includes(event.target.name)) {
-    applyPreferences(preferencesFromForm(), { renderData: false });
-  }
+  if (event.target.id === "settings-stream-key") { updateConnectionLinks(); return; }
+  if (event.target.id === "weather-place-query") return;
+  scheduleSettingsSave();
+});
+elements["settings-form"].addEventListener("input", (event) => {
+  if (event.target.id === "settings-stream-key") { updateConnectionLinks(); return; }
+  if (event.target.id === "weather-place-query") return;
+  scheduleSettingsSave(event.target.type === "text" || event.target.type === "number" ? 250 : 0);
 });
 elements["reset-settings"].addEventListener("click", () => {
+  try { preferenceStorage?.removeItem(pendingStreamKeyStorageKey); } catch { }
   fillSettings(DEFAULT_PREFERENCES);
-  applyPreferences(DEFAULT_PREFERENCES, { renderData: false });
-  showToast("Defaults ready - choose Done to save");
+  state.savedPreferences = { ...state.savedPreferences, overlayLayout: DEFAULT_PREFERENCES.overlayLayout };
+  scheduleSettingsSave();
+  showToast("Default settings restored");
+});
+elements["reset-overlay-layout"].addEventListener("click", () => {
+  try {
+    state.savedPreferences = savePreferences(preferenceStorage, { ...state.savedPreferences, overlayLayout: DEFAULT_PREFERENCES.overlayLayout }, preferencesStorageKey);
+    state.preferences = state.savedPreferences;
+    applyOverlayLayout();
+    showToast("Overlay positions reset");
+  } catch { showToast("Overlay positions could not be saved"); }
 });
 elements["settings-dialog"].addEventListener("cancel", (event) => {
   event.preventDefault();
-  cancelSettings();
+  closeSettings();
 });
 elements["settings-dialog"].addEventListener("click", (event) => {
-  if (event.target === elements["settings-dialog"]) cancelSettings();
+  if (event.target === elements["settings-dialog"]) closeSettings();
 });
 elements["skip-welcome"]?.addEventListener("click", dismissWelcome);
 document.addEventListener("keydown", (event) => {

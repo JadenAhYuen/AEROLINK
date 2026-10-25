@@ -23,6 +23,8 @@ test("weather assessment considers gusts, precipitation, low light, freshness an
   assert.equal(assessWeather({ ...sample, isDay: false }, "mini-4-pro", null, now).level, "caution");
   assert.equal(assessWeather({ ...sample, time: new Date(now - 31 * 60_000).toISOString() }, "mini-4-pro", null, now).level, "unknown");
   assert.equal(assessWeather(sample, "lito-x1", null, now).level, "favourable");
+  assert.equal(assessWeather(sample, "none", null, now).level, "unknown");
+  assert.equal(assessWeather(sample, "custom", 7, now).level, "caution");
   assert.equal(assessWeather({ ...sample, gustMps: 9 }, "lito-x1", 7, now).level, "no-go");
   assert.equal(assessWeather(sample, "neo", 4, now).level, "no-go");
   assert.equal(assessWeather(sample, "neo", 20, now).limitMps, 8);
@@ -31,7 +33,7 @@ test("weather assessment considers gusts, precipitation, low light, freshness an
 test("weather settings validate coordinates and model", () => {
   assert.deepEqual(normalizePreferences({ droneModel: "neo", weather: { enabled: true, latitude: 0, longitude: 0, pilotLimitMps: 6 } }).weather,
     { enabled: true, latitude: 0, longitude: 0, pilotLimitMps: 6 });
-  assert.equal(normalizePreferences({ droneModel: "unknown", weather: { latitude: 100 } }).droneModel, "lito-x1");
+  assert.equal(normalizePreferences({ droneModel: "unknown", weather: { latitude: 100 } }).droneModel, "none");
   assert.equal(normalizePreferences({ weather: { latitude: 100 } }).weather.latitude, null);
   assert.throws(() => parseCoordinates("", "0"));
   assert.throws(() => parseCoordinates("91", "0"));

@@ -20,7 +20,7 @@
         <div class="brand">
           <div class="brand-mark" aria-hidden="true"><img src="/assets/aerolink-mark.svg" alt=""></div>
           <div class="brand-copy">
-            <p class="eyebrow">LOCAL GROUND STATION <span id="aircraft-name">Lito X1</span></p>
+            <p class="eyebrow">LOCAL GROUND STATION <span id="aircraft-name">Aircraft</span></p>
             <h1>AEROLINK</h1>
           </div>
         </div>
@@ -46,14 +46,14 @@
           </div>
 
           <div class="video-stage">
-            <iframe id="video-frame" title="DJI live video" allow="autoplay; fullscreen" allowfullscreen></iframe>
+            <iframe id="video-frame" title="Live video" allow="autoplay; fullscreen" allowfullscreen></iframe>
             <div class="video-placeholder" id="video-placeholder">
               <video class="placeholder-reel active" id="placeholder-reel-a" autoplay muted playsinline preload="auto" aria-hidden="true"></video>
               <video class="placeholder-reel" id="placeholder-reel-b" muted playsinline preload="auto" aria-hidden="true"></video>
               <div class="placeholder-shade"></div>
               <div class="placeholder-copy">
                 <div class="reticle" aria-hidden="true"><span></span></div>
-                <strong>Ready for your DJI stream</strong>
+                <strong>Ready for your stream</strong>
                 <p>Open Settings for the three quick connection steps.</p>
               </div>
             </div>
@@ -61,7 +61,7 @@
           </div>
 
           <div class="stream-instruction">
-            <div class="stream-address"><span class="field-label">DJI FLY RTMP ADDRESS</span><code id="rtmp-url">rtmp://laptop-ip/x</code></div>
+            <div class="stream-address"><span class="field-label">RTMP ADDRESS</span><code id="rtmp-url">rtmp://laptop-ip/x</code></div>
             <button class="primary-button" id="copy-url" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg><span>Copy</span>
             </button>
@@ -70,13 +70,14 @@
 
         <div class="flight-overlays">
         <section class="panel weather-panel preference-hidden" id="weather-panel" aria-labelledby="weather-title">
-          <div class="weather-head"><div><p class="section-kicker">FLIGHT WEATHER</p><h2 id="weather-title"><span id="weather-icon" aria-hidden="true">◌</span><span id="weather-condition">Set location</span></h2></div><span class="weather-status" id="weather-status">NO DATA</span></div>
+          <div class="weather-head" data-overlay-handle="weather" role="button" tabindex="0" aria-label="Move weather overlay with arrow keys"><div><p class="section-kicker">FLIGHT WEATHER</p><h2 id="weather-title"><span id="weather-icon" aria-hidden="true">◌</span><span id="weather-condition">Set location</span></h2></div><span class="weather-status" id="weather-status">NO DATA</span></div>
           <div class="weather-winds"><div><span aria-hidden="true">≋</span><span class="weather-wind-label">WIND</span><strong id="weather-wind">—</strong></div><div><span aria-hidden="true">↝</span><span class="weather-wind-label">GUST</span><strong id="weather-gust">—</strong></div></div>
           <div class="wind-meter" id="wind-meter" role="meter" aria-label="Peak wind compared with selected aircraft wind limit" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="wind-marker"></span></div>
-          <div class="weather-foot"><span id="weather-model">DJI Lito X1</span><span id="weather-age">Waiting</span></div>
+          <div class="weather-foot"><span id="weather-model">Select a model</span><span id="weather-age">Waiting</span></div>
+          <button class="overlay-resize" data-overlay-resize="weather" type="button" aria-label="Resize weather overlay with arrow keys" title="Drag to resize">⌟</button>
         </section>
         <aside class="panel telemetry-panel" id="telemetry-panel" aria-labelledby="telemetry-title">
-          <div class="panel-heading">
+          <div class="panel-heading" data-overlay-handle="telemetry" role="button" tabindex="0" aria-label="Move telemetry overlay with arrow keys">
             <div><p class="section-kicker">AIRCRAFT DATA</p><h2 id="telemetry-title">Flight telemetry</h2></div>
             <span class="source-badge" id="source-badge">NO DATA</span>
           </div>
@@ -103,11 +104,12 @@
             </div>
           </div>
 
+          <button class="overlay-resize" data-overlay-resize="telemetry" type="button" aria-label="Resize telemetry overlay with arrow keys" title="Drag to resize">⌟</button>
         </aside>
         </div>
 
         <section class="panel track-panel" id="track-panel" aria-labelledby="track-title">
-          <div class="panel-heading track-heading">
+          <div class="panel-heading track-heading" data-overlay-handle="track" role="button" tabindex="0" aria-label="Move flight track with arrow keys">
             <div><p class="section-kicker">HOME-RELATIVE VIEW</p><h2 id="track-title">Flight track</h2></div>
             <div class="track-legend" aria-label="Map legend"><span><i class="home-dot"></i> Home</span><span><i class="aircraft-dot"></i> Aircraft</span></div>
           </div>
@@ -123,6 +125,7 @@
             </svg>
             <div class="track-empty" id="track-empty">Remote ID positions will draw the flight path here</div>
           </div>
+          <button class="overlay-resize" data-overlay-resize="track" type="button" aria-label="Resize flight track with arrow keys" title="Drag to resize">⌟</button>
         </section>
       </main>
 
@@ -134,7 +137,7 @@
       </section>
 
       <footer>
-        <p><span class="warning-icon">!</span> Secondary monitor only - always fly using the RC 2 display and maintain visual line of sight.</p>
+        <p><span class="warning-icon">!</span> Secondary monitor only — fly using your approved controller and maintain visual line of sight.</p>
         <span id="telemetry-endpoint"></span>
       </footer>
     </div>
@@ -143,9 +146,9 @@
       <form class="settings-sheet" id="settings-form">
         <div class="sheet-grabber" aria-hidden="true"></div>
         <header class="sheet-header">
-          <button class="sheet-action" id="settings-cancel" type="button">Cancel</button>
+          <button class="sheet-action" id="settings-close" type="button">Close</button>
           <div><p class="eyebrow">PERSONALIZE</p><h2 id="settings-title">Dashboard Settings</h2></div>
-          <button class="sheet-action done" type="submit">Done</button>
+          <span class="settings-saved" id="settings-saved" role="status">Changes save automatically</span>
         </header>
 
         <div class="settings-content">
@@ -158,8 +161,8 @@
             <details class="setup-help">
               <summary><span>i</span> Simple setup guide</summary>
               <ol>
-                <li>Turn on the aircraft and controller. Connect the streaming device and this laptop to the same network.</li>
-                <li>In DJI Fly, open <strong>Live Streaming</strong> and choose <strong>RTMP</strong>. Use the server link and key above, or the complete address for a single address field.</li>
+                <li>Connect your RTMP-capable camera or controller and this laptop to the same network.</li>
+                <li>In your streaming app, choose <strong>RTMP</strong>. Use the server link and key above, or the complete address for a single address field.</li>
                 <li>Start streaming. This view automatically changes to your live camera.</li>
               </ol>
             </details>
@@ -182,7 +185,7 @@
 
           <section class="settings-group" aria-labelledby="identity-heading">
             <div class="settings-group-title"><h3 id="identity-heading">Aircraft Identity</h3><p>Give this dashboard a recognizable aircraft profile.</p></div>
-            <label class="form-row"><span>Aircraft name</span><input name="aircraftName" type="text" maxlength="40" autocomplete="off" placeholder="Lito X1"></label>
+            <label class="form-row"><span>Aircraft name</span><input name="aircraftName" type="text" maxlength="40" autocomplete="off" placeholder="Aircraft"></label>
             <label class="form-row"><span>Drone model</span><select name="droneModel" id="drone-model"></select></label>
             <label class="form-row"><span>UAS ID override</span><input name="uasId" type="text" maxlength="64" autocomplete="off" placeholder="Use received ID"></label>
             <label class="form-row"><span>Operator ID override</span><input name="operatorId" type="text" maxlength="64" autocomplete="off" placeholder="Use received ID"></label>
@@ -194,7 +197,7 @@
             <label class="toggle-row"><span><strong>Weather overlay</strong><small>Show conditions above the live view</small></span><input type="checkbox" name="weatherEnabled"><i></i></label>
             <label class="form-row"><span>Find a place</span><span class="weather-search-controls"><input id="weather-place-query" type="search" placeholder="City or postal code" autocomplete="off"><button class="quiet-button" id="weather-place-search" type="button">Search</button></span></label>
             <div class="weather-place-results" id="weather-place-results" aria-live="polite"></div>
-            <div class="weather-coordinates"><label class="form-row"><span>Latitude</span><input name="weatherLatitude" type="number" min="-90" max="90" step="any" placeholder="e.g. -20.1609"></label><label class="form-row"><span>Longitude</span><input name="weatherLongitude" type="number" min="-180" max="180" step="any" placeholder="e.g. 57.5012"></label></div>
+            <div class="weather-coordinates"><label class="form-row"><span>Latitude</span><input name="weatherLatitude" type="number" min="-90" max="90" step="any" placeholder="−90 to 90"></label><label class="form-row"><span>Longitude</span><input name="weatherLongitude" type="number" min="-180" max="180" step="any" placeholder="−180 to 180"></label></div>
             <button class="quiet-button weather-location-button" id="weather-use-location" type="button">Use device location</button>
             <label class="form-row"><span>Pilot wind limit · m/s</span><input name="pilotLimitMps" type="number" min="0.5" max="20" step="0.1" placeholder="Optional"></label>
             <p class="settings-note" id="weather-model-note"></p>
@@ -219,6 +222,8 @@
               <label class="toggle-row"><span><strong>Clean streaming output</strong><small>Hide controls for an OBS or vMix browser source</small></span><input type="checkbox" name="rawOutput"><i></i></label>
             </div>
             <div class="settings-note clean-output-note" id="clean-output-note" hidden><span>Browser Source link</span><div class="clean-output-link"><code id="clean-output-url"></code><button class="small-primary-button" id="clean-output-copy" type="button">Copy link</button><a class="quiet-button" id="clean-output-open" target="_blank" rel="noopener">Open output</a></div></div>
+            <p class="settings-note">Drag an overlay by its heading. Drag its lower corner to resize. The layout saves for this feed.</p>
+            <button class="quiet-button layout-reset" id="reset-overlay-layout" type="button">Reset overlay positions</button>
           </section>
 
           <section class="settings-group" aria-labelledby="telemetry-development-heading">

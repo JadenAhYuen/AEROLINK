@@ -5,11 +5,12 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   theme: "light",
   accent: "blue",
   units: "metric",
-  aircraftName: "Lito X1",
+  aircraftName: "Aircraft",
   uasId: "",
   operatorId: "",
-  droneModel: "lito-x1",
+  droneModel: "none",
   weather: Object.freeze({ enabled: false, latitude: null, longitude: null, pilotLimitMps: null }),
+  overlayLayout: Object.freeze({ weather: null, telemetry: null, track: null }),
   panels: Object.freeze({
     track: false,
     overlay: false,
@@ -45,10 +46,20 @@ function boundedNumber(value, min, max) {
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
 }
 
+function layoutEntry(value) {
+  if (!value || typeof value !== "object") return null;
+  const x = boundedNumber(value.x, 0, 10000);
+  const y = boundedNumber(value.y, 0, 10000);
+  const width = boundedNumber(value.width, 220, 1200);
+  const height = boundedNumber(value.height, 120, 1200);
+  return x === null || y === null || width === null || height === null ? null : { x, y, width, height };
+}
+
 export function normalizePreferences(input = {}) {
   const source = input && typeof input === "object" ? input : {};
   const panels = source.panels && typeof source.panels === "object" ? source.panels : {};
   const weather = source.weather && typeof source.weather === "object" ? source.weather : {};
+  const overlayLayout = source.overlayLayout && typeof source.overlayLayout === "object" ? source.overlayLayout : {};
 
   return {
     theme: choice(source.theme, "theme", DEFAULT_PREFERENCES.theme),
@@ -63,6 +74,11 @@ export function normalizePreferences(input = {}) {
       latitude: boundedNumber(weather.latitude, -90, 90),
       longitude: boundedNumber(weather.longitude, -180, 180),
       pilotLimitMps: boundedNumber(weather.pilotLimitMps, 0.5, 20),
+    },
+    overlayLayout: {
+      weather: layoutEntry(overlayLayout.weather),
+      telemetry: layoutEntry(overlayLayout.telemetry),
+      track: layoutEntry(overlayLayout.track),
     },
     panels: {
       track: panelChoice(panels.track, DEFAULT_PREFERENCES.panels.track),

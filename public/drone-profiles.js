@@ -1,6 +1,8 @@
 // Manufacturer references checked 2026-10-25. Ratings are not safe operating targets.
 const spec = (slug) => `https://www.dji.com/${slug}/specs`;
 export const DRONE_PROFILES = Object.freeze([
+  { id: "none", name: "Select a drone model", maxWindMps: null, source: null },
+  { id: "custom", name: "Other aircraft · pilot limit", maxWindMps: null, source: null },
   { id: "lito-x1", name: "DJI Lito X1", maxWindMps: 10.7, source: "https://www.dji.com/global/lito-x1/specs" },
   { id: "mini-4-pro", name: "DJI Mini 4 Pro", maxWindMps: 10.7, source: spec("mini-4-pro") },
   { id: "mini-3", name: "DJI Mini 3", maxWindMps: 10.7, source: spec("mini-3") },

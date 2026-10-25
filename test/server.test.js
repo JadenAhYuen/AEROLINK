@@ -61,6 +61,15 @@ test("weather endpoint validates coordinates and fails closed when provider fail
   }, { mediaMtxApiUrl: null, weatherOptions: { fetchWeather: async () => { throw new Error("offline"); } } });
 });
 
+test("place search returns selected coordinates without requiring typed GPS values", async () => {
+  await withServer(async (baseUrl) => {
+    assert.equal((await fetch(`${baseUrl}/api/places?q=x`)).status, 400);
+    const response = await fetch(`${baseUrl}/api/places?q=Berlin`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { places: [{ name: "Berlin", region: "Berlin", country: "Germany", latitude: 52.52, longitude: 13.41 }] });
+  }, { mediaMtxApiUrl: null, searchPlaces: async () => [{ name: "Berlin", region: "Berlin", country: "Germany", latitude: 52.52, longitude: 13.41 }] });
+});
+
 test("config uses the request hostname for short RTMP and WebRTC URLs", async () => {
   await withServer(async (baseUrl) => {
     const target = new URL(baseUrl);

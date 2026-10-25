@@ -20,7 +20,7 @@ const elementIds = [
   "track-panel", "identity-section", "signal-metric", "uas-override-badge", "operator-override-badge",
   "settings-rtmp-url", "settings-copy-url", "settings-stream-key", "settings-new-key", "settings-switch-feed", "settings-viewer-url", "telemetry-panel",
   "placeholder-reel-a", "placeholder-reel-b", "welcome-screen", "skip-welcome", "clean-output-note", "clean-output-url", "clean-output-copy", "clean-output-open", "settings-full-rtmp-url",
-  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-detail", "weather-meta", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result",
+  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-icon", "weather-age", "wind-meter", "wind-marker", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result", "weather-place-query", "weather-place-search", "weather-place-results",
 ];
 
 const elements = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
@@ -80,6 +80,15 @@ function windDisplay(value) {
   return state.preferences.units === "aviation" ? `${(value * 1.94384).toFixed(1)} kt` : `${value.toFixed(1)} m/s`;
 }
 
+function weatherIcon(code) {
+  if (code >= 95) return "⚡";
+  if (code >= 51) return "☂";
+  if (code === 45 || code === 48) return "≋";
+  if (code === 0 || code === 1) return "☼";
+  if (code >= 2) return "☁";
+  return "◌";
+}
+
 function renderWeather() {
   const panel = elements["weather-panel"];
   const prefs = state.preferences;
@@ -91,12 +100,18 @@ function renderWeather() {
   const assessment = data ? assessWeather(data, profile.id, prefs.weather.pilotLimitMps) : null;
   const level = assessment?.level ?? "unknown";
   panel.dataset.level = level;
-  elements["weather-status"].textContent = assessment?.label ?? (key ? state.weatherError || "CHECKING" : "SET LOCATION");
-  elements["weather-condition"].textContent = data ? weatherDescription(data.weatherCode) : key ? "Conditions unavailable" : "Choose coordinates in Settings";
+  elements["weather-status"].textContent = { favourable: "LOW RISK*", caution: "CAUTION", "no-go": "DO NOT FLY", unknown: key ? state.weatherError || "NO DATA" : "SET LOCATION" }[level];
+  elements["weather-condition"].textContent = data ? weatherDescription(data.weatherCode) : key ? "Weather unavailable" : "Set location";
+  elements["weather-icon"].textContent = data ? weatherIcon(data.weatherCode) : "◌";
   elements["weather-wind"].textContent = windDisplay(data?.windMps);
   elements["weather-gust"].textContent = windDisplay(data?.gustMps);
-  elements["weather-detail"].textContent = assessment?.reason ?? (key ? "No current weather estimate. Check again before flight." : "Enter coordinates in Settings to see local conditions.");
-  elements["weather-meta"].textContent = data ? `${Number(data.latitude).toFixed(5)}, ${Number(data.longitude).toFixed(5)} · ${new Date(data.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · 10 m model wind` : key ? `${prefs.weather.latitude}, ${prefs.weather.longitude}` : "No location selected";
+  const limit = assessment?.limitMps ?? profile.maxWindMps;
+  const ratio = data && Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.max(0, Math.max(data.windMps, data.gustMps) / limit * 100)) : null;
+  elements["wind-meter"].classList.toggle("empty", ratio === null || level === "unknown");
+  elements["wind-meter"].setAttribute("aria-valuenow", ratio === null || level === "unknown" ? "0" : String(Math.round(ratio)));
+  elements["wind-meter"].setAttribute("aria-valuetext", ratio === null || level === "unknown" ? "No current wind assessment" : `Peak wind ${Math.round(ratio)}% of ${windDisplay(limit)} limit`);
+  elements["wind-marker"].style.left = `${ratio ?? 0}%`;
+  elements["weather-age"].textContent = data ? `Updated ${Math.max(0, Math.floor((Date.now() - Date.parse(data.fetchedAt)) / 60_000))}m ago` : "Check Settings";
 }
 
 async function refreshWeather({ force = false, coordinates = null } = {}) {
@@ -620,9 +635,40 @@ async function initialize() {
 }
 
 elements["drone-model"].addEventListener("change", updateWeatherModelNote);
+elements["weather-place-search"].addEventListener("click", async () => {
+  const query = elements["weather-place-query"].value.trim();
+  const results = elements["weather-place-results"];
+  results.replaceChildren();
+  if (query.length < 3) { results.textContent = "Enter at least three letters."; return; }
+  results.textContent = "Searching…";
+  try {
+    const response = await fetch(`/api/places?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error("Search unavailable");
+    const { places } = await response.json();
+    results.replaceChildren();
+    if (!places.length) { results.textContent = "No places found. Try another name."; return; }
+    for (const place of places) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "weather-place-option";
+      button.textContent = [place.name, place.region, place.country].filter(Boolean).join(", ");
+      button.addEventListener("click", () => {
+        const form = elements["settings-form"];
+        form.elements.namedItem("weatherLatitude").value = place.latitude;
+        form.elements.namedItem("weatherLongitude").value = place.longitude;
+        elements["weather-settings-result"].textContent = `${button.textContent} selected. Choose Done to save, or check conditions now.`;
+        results.replaceChildren();
+      });
+      results.append(button);
+    }
+  } catch { results.textContent = "Place search is unavailable. Try again or enter coordinates."; }
+});
+elements["weather-place-query"].addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); elements["weather-place-search"].click(); }
+});
 elements["weather-use-location"].addEventListener("click", () => {
   const status = elements["weather-settings-result"];
-  if (!navigator.geolocation) { status.textContent = "Device location is unavailable. Enter coordinates manually."; return; }
+  if (!navigator.geolocation || !window.isSecureContext) { status.textContent = "Device location needs HTTPS or localhost. Use place search, or enter coordinates."; return; }
   status.textContent = "Requesting device location…";
   navigator.geolocation.getCurrentPosition((position) => {
     elements["settings-form"].elements.namedItem("weatherLatitude").value = position.coords.latitude.toFixed(6);

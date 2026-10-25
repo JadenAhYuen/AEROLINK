@@ -40,6 +40,9 @@ jobs:
           Invoke-WebRequest 'https://github.com/bluenviron/mediamtx/releases/download/v1.21.2/mediamtx_v1.21.2_windows_amd64.zip' -OutFile .tools/mediamtx.zip
           if ((Get-FileHash .tools/mediamtx.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a84224f5a490855684e62ba6fb71e80ea2a5e16aed61883bb58380290e93e467') { throw 'MediaMTX checksum mismatch' }
           Expand-Archive .tools/mediamtx.zip .tools/mediamtx-1.21.2 -Force
+      - name: Download verified waiting visuals
+        shell: pwsh
+        run: ./scripts/fetch-release-clips.ps1
       - run: npm run build:windows
       - name: Smoke-test portable launcher
         shell: pwsh

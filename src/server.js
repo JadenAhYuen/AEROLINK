@@ -226,6 +226,16 @@ export function createDashboardServer(options = {}) {
   const allowSimulatorRequest = createRateLimiter(60, 60_000);
   const allowWeatherRequest = createRateLimiter(60, 60_000);
   const weatherFor = createWeatherService(options.weatherOptions);
+  const searchPlaces = options.searchPlaces ?? (async (query) => {
+    const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
+    url.search = new URLSearchParams({ name: query, count: "5", language: "en", format: "json" }).toString();
+    const result = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!result.ok) throw new Error("Location lookup failed");
+    const body = await result.json();
+    return (Array.isArray(body.results) ? body.results : []).filter((place) =>
+      typeof place.name === "string" && Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
+      .slice(0, 5).map((place) => ({ name: place.name, region: place.admin1 ?? "", country: place.country ?? "", latitude: place.latitude, longitude: place.longitude }));
+  });
   const sseClients = new Map();
   const latestTelemetry = new Map();
 
@@ -256,6 +266,15 @@ export function createDashboardServer(options = {}) {
         if (!allowWeatherRequest(request)) { sendJson(response, 429, { error: "Try again in a minute." }); return; }
         try { sendJson(response, 200, await weatherFor(coordinates)); }
         catch { sendJson(response, 503, { error: "Weather unavailable. No flight assessment can be made. Check your internet connection and try again." }); }
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/places") {
+        const query = (url.searchParams.get("q") ?? "").trim();
+        if (query.length < 3 || query.length > 80) { sendJson(response, 400, { error: "Enter at least three letters for a place." }); return; }
+        if (!allowWeatherRequest(request)) { sendJson(response, 429, { error: "Try again in a minute." }); return; }
+        try { sendJson(response, 200, { places: await searchPlaces(query) }); }
+        catch { sendJson(response, 503, { error: "Place search is unavailable." }); }
         return;
       }
 

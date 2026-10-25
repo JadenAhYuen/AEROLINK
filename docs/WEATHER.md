@@ -6,14 +6,16 @@ so the result is not an observation at the exact coordinate. Wind and gusts are
 modelled for 10 m above ground. They cannot represent wind at drone altitude,
 near obstacles, or a sudden local gust. The app refreshes every five minutes;
 weather older than 30 minutes produces no assessment.
+Place search uses Open-Meteo's geocoding service, whose location data is based
+on GeoNames. Selecting a place fills its coordinates; a named city is a broad
+location, so enter precise coordinates if the launch site is elsewhere.
 
 The advisory is an AEROLINK heuristic, not a DJI instruction or clearance:
 
 - Thunderstorm, fog or precipitation: **Do not fly**.
 - Wind or gust at or above the lower of the DJI rating and pilot limit: **Do not fly**.
 - Wind or gust at least 70% of the selected limit: **Caution**.
-- Lito X1, whose rating is unverified here: **No assessment** until a pilot
-  limit is entered, then **Caution** at best.
+- Lito X1 uses DJI's published 10.7 m/s maximum wind resistance.
 - Low light or missing daylight information: **Caution**.
 - Otherwise: **Favourable · Estimate**. This checks only the conditions above.
 
@@ -26,7 +28,7 @@ skill, or aircraft-specific restrictions. Always check on site.
 
 | Model | Published maximum wind resistance | DJI source |
 | --- | ---: | --- |
-| Lito X1 | Unverified | [User manual](https://dl.djicdn.com/downloads/DJI_Lito_X1/UM/20260417/DJI_Lito_X1_User_Manual_en.pdf) |
+| Lito X1 | 10.7 m/s | [Specifications](https://www.dji.com/global/lito-x1/specs) |
 | Mini 4 Pro | 10.7 m/s | [Specifications](https://www.dji.com/mini-4-pro/specs) |
 | Mini 3 | 10.7 m/s | [Specifications](https://www.dji.com/mini-3/specs) |
 | Mini 2 SE | 10.7 m/s | [Specifications](https://www.dji.com/mini-2-se/specs) |

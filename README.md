@@ -35,22 +35,22 @@ are off by default and can be deliberately enabled in Settings.
 
 ## Flight weather
 
-In **Settings → Flight weather**, select a DJI model, enter latitude and longitude,
-and choose **Check conditions now**. Turn on **Weather overlay** and select
-**Done** to keep the panel on the viewer. Each feed saves its own location and
-model. The panel refreshes while open. A device location button is available
-where the browser permits location access; coordinates can always be entered.
+In **Settings → Flight weather**, select a DJI model and search for a city or
+postal code. Select a result, turn on **Weather overlay**, then choose **Done**.
+You can also use device location where the browser permits it or enter exact
+coordinates. Each feed saves its own location and model. The compact panel
+shows conditions, wind, gusts, a graded wind-limit scale and the last update
+time. It refreshes every five minutes while enabled.
 
 The estimate uses Open-Meteo's modelled conditions near the requested point,
 including wind and gusts at **10 m**. It is not a measurement at the aircraft or
 at its flight altitude. The result combines weather with the selected DJI
 model's published maximum wind resistance and an optional lower pilot limit.
-The Lito X1 wind rating could not be verified from DJI's accessible material;
-its profile remains **unverified** and requires a pilot limit for a cautionary
-estimate. A favourable result is not a flight clearance. Wind can change at any
+DJI lists the Lito X1's maximum wind resistance as 10.7 m/s. A favourable
+result is not a flight clearance. Wind can change at any
 time. Check conditions on site and fly within the aircraft manual and local rules.
 
-Weather requires internet access. Enabling the overlay or checking conditions
+Weather requires internet access. Place search, enabling the overlay or checking conditions
 sends the chosen coordinates to Open-Meteo. Its free API is for noncommercial
 use; deployments needing commercial rights should configure an
 `OPEN_METEO_API_KEY` for the customer API. See [weather method and model sources](docs/WEATHER.md).
@@ -61,6 +61,9 @@ For Windows 10/11, extract the portable release ZIP and double-click
 **AEROLINK.exe**. Node.js and MediaMTX are included. The viewer opens automatically;
 the launcher shows the address to use on a tablet. Keep the launcher open while
 flying. Close it or choose **Stop** to stop its services; **Retry** starts them again.
+The release includes waiting visuals. The launcher checks GitHub for a newer
+release and offers a verified, one-click update. It installs the new version
+beside the old one and copies any videos you added locally.
 
 To run from source, install Node.js 22+ and use:
 

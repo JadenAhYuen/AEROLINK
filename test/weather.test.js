@@ -8,9 +8,9 @@ import { createWeatherService, parseCoordinates } from "../src/weather.js";
 const now = Date.now();
 const sample = { time: new Date(now).toISOString(), windMps: 3, gustMps: 5, precipitationMm: 0, weatherCode: 2, isDay: true };
 
-test("profiles include at least ten DJI models and leave unverified ratings unknown", () => {
+test("profiles include at least ten DJI models with published ratings", () => {
   assert.ok(DRONE_PROFILES.length >= 10);
-  assert.equal(DRONE_PROFILES.find(({ id }) => id === "lito-x1").maxWindMps, null);
+  assert.equal(DRONE_PROFILES.find(({ id }) => id === "lito-x1").maxWindMps, 10.7);
   assert.equal(DRONE_PROFILES.find(({ id }) => id === "neo").maxWindMps, 8);
 });
 
@@ -22,8 +22,8 @@ test("weather assessment considers gusts, precipitation, low light, freshness an
   assert.equal(assessWeather({ ...sample, weatherCode: 95 }, "mini-4-pro", null, now).level, "no-go");
   assert.equal(assessWeather({ ...sample, isDay: false }, "mini-4-pro", null, now).level, "caution");
   assert.equal(assessWeather({ ...sample, time: new Date(now - 31 * 60_000).toISOString() }, "mini-4-pro", null, now).level, "unknown");
-  assert.equal(assessWeather(sample, "lito-x1", null, now).level, "unknown");
-  assert.equal(assessWeather(sample, "lito-x1", 7, now).level, "caution");
+  assert.equal(assessWeather(sample, "lito-x1", null, now).level, "favourable");
+  assert.equal(assessWeather({ ...sample, gustMps: 9 }, "lito-x1", 7, now).level, "no-go");
   assert.equal(assessWeather(sample, "neo", 4, now).level, "no-go");
   assert.equal(assessWeather(sample, "neo", 20, now).limitMps, 8);
 });

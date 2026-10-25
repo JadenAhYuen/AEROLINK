@@ -50,6 +50,16 @@ telemetry request. The token is optional on a dedicated, trusted flight network.
 
 ## Receiver choices
 
+### DJI RC 2 USB
+
+The RC 2 USB-C connection supports connection to a computer for file transfer,
+but DJI does not document a live telemetry stream or Windows API over this port.
+DJI also says third-party apps cannot be installed on RC 2. AEROLINK therefore
+does not read flight telemetry by plugging the controller into the laptop.
+This conclusion is based on DJI's public documentation and has not been tested
+against a physical controller. See [DJI RC 2 support](https://www.dji.com/support/product/rc-2)
+and [DJI's media export guide](https://repair.dji.com/help/content?customId=en-us03400006852&documentType=artical&lang=en&paperDocType=paper&re=US&spaceId=34).
+
 ### Android
 
 The [OpenDroneID Receiver reference application](https://github.com/opendroneid/receiver-android)
@@ -73,7 +83,7 @@ From PowerShell on the laptop:
 ```powershell
 $sample = @{
   source = "remote-id"
-  uasId = "LITO-X1-TEST"
+  uasId = "DJI-TEST"
   latitude = -20.1612
   longitude = 57.4989
   heightM = 25.4

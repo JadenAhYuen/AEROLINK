@@ -18,6 +18,8 @@ test("preference defaults favor the daylight appearance and metric flight data",
     aircraftName: "Lito X1",
     uasId: "",
     operatorId: "",
+    droneModel: "lito-x1",
+    weather: { enabled: false, latitude: null, longitude: null, pilotLimitMps: null },
     panels: {
       track: false,
       overlay: false,
@@ -46,6 +48,8 @@ test("normalizePreferences accepts known choices and trims dashboard identity ov
       aircraftName: "Survey One",
       uasId: "1581F-test",
       operatorId: "MUS-OP-001",
+      droneModel: "lito-x1",
+      weather: { enabled: false, latitude: null, longitude: null, pilotLimitMps: null },
       panels: { track: false, overlay: false, identity: true, signal: false, rawOutput: false },
     },
   );

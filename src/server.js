@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { normalizeTelemetry, TelemetryValidationError } from "./telemetry.js";
+import { createWeatherService, parseCoordinates } from "./weather.js";
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const publicDirectory = path.resolve(moduleDirectory, "../public");
@@ -30,7 +31,7 @@ function applySecurityHeaders(response) {
   response.setHeader("referrer-policy", "no-referrer");
   response.setHeader(
     "permissions-policy",
-    "camera=(), microphone=(), geolocation=(), payment=()",
+    "camera=(), microphone=(), geolocation=(self), payment=()",
   );
 }
 
@@ -223,6 +224,8 @@ export function createDashboardServer(options = {}) {
   const telemetryToken = options.telemetryToken ?? process.env.TELEMETRY_TOKEN ?? null;
   const allowTelemetryRequest = createRateLimiter(1200, 60_000);
   const allowSimulatorRequest = createRateLimiter(60, 60_000);
+  const allowWeatherRequest = createRateLimiter(60, 60_000);
+  const weatherFor = createWeatherService(options.weatherOptions);
   const sseClients = new Map();
   const latestTelemetry = new Map();
 
@@ -245,6 +248,16 @@ export function createDashboardServer(options = {}) {
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://localhost");
+
+      if (request.method === "GET" && url.pathname === "/api/weather") {
+        let coordinates;
+        try { coordinates = parseCoordinates(url.searchParams.get("latitude"), url.searchParams.get("longitude")); }
+        catch (error) { sendJson(response, 400, { error: error.message }); return; }
+        if (!allowWeatherRequest(request)) { sendJson(response, 429, { error: "Try again in a minute." }); return; }
+        try { sendJson(response, 200, await weatherFor(coordinates)); }
+        catch { sendJson(response, 503, { error: "Weather unavailable. No flight assessment can be made. Check your internet connection and try again." }); }
+        return;
+      }
 
       if (request.method === "GET" && url.pathname === "/api/health") {
         sendJson(response, 200, { status: "ok" });

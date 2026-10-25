@@ -6,6 +6,8 @@ import {
   resolveIdentity,
   savePreferences,
 } from "./preferences.js";
+import { DRONE_PROFILES, droneProfile } from "./drone-profiles.js";
+import { assessWeather, weatherDescription, WEATHER_DISCLAIMER } from "./weather.js";
 
 const elementIds = [
   "video-status", "telemetry-status", "video-frame", "video-placeholder", "live-badge",
@@ -18,6 +20,7 @@ const elementIds = [
   "track-panel", "identity-section", "signal-metric", "uas-override-badge", "operator-override-badge",
   "settings-rtmp-url", "settings-copy-url", "settings-stream-key", "settings-new-key", "settings-switch-feed", "settings-viewer-url", "telemetry-panel",
   "placeholder-reel-a", "placeholder-reel-b", "welcome-screen", "skip-welcome", "clean-output-note", "clean-output-url", "clean-output-copy", "clean-output-open", "settings-full-rtmp-url",
+  "drone-model", "weather-model-note", "weather-panel", "weather-status", "weather-model", "weather-condition", "weather-wind", "weather-gust", "weather-detail", "weather-meta", "weather-disclaimer", "weather-check", "weather-use-location", "weather-settings-result",
 ];
 
 const elements = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
@@ -57,7 +60,75 @@ const state = {
   videoLive: false,
   toastTimer: null,
   preferences: loadPreferences(preferenceStorage, preferencesStorageKey),
+  savedPreferences: loadPreferences(preferenceStorage, preferencesStorageKey),
+  weatherData: null,
+  weatherKey: null,
+  weatherError: null,
+  weatherRequest: 0,
 };
+
+for (const profile of DRONE_PROFILES) elements["drone-model"].add(new Option(profile.name, profile.id));
+elements["weather-disclaimer"].textContent = WEATHER_DISCLAIMER;
+
+function weatherLocationKey(preferences) {
+  const { latitude, longitude } = preferences.weather;
+  return latitude === null || longitude === null ? null : `${latitude},${longitude}`;
+}
+
+function windDisplay(value) {
+  if (!Number.isFinite(value)) return "—";
+  return state.preferences.units === "aviation" ? `${(value * 1.94384).toFixed(1)} kt` : `${value.toFixed(1)} m/s`;
+}
+
+function renderWeather() {
+  const panel = elements["weather-panel"];
+  const prefs = state.preferences;
+  panel.classList.toggle("preference-hidden", !prefs.weather.enabled);
+  const profile = droneProfile(prefs.droneModel);
+  elements["weather-model"].textContent = profile.name;
+  const key = weatherLocationKey(prefs);
+  const data = key === state.weatherKey ? state.weatherData : null;
+  const assessment = data ? assessWeather(data, profile.id, prefs.weather.pilotLimitMps) : null;
+  const level = assessment?.level ?? "unknown";
+  panel.dataset.level = level;
+  elements["weather-status"].textContent = assessment?.label ?? (key ? state.weatherError || "CHECKING" : "SET LOCATION");
+  elements["weather-condition"].textContent = data ? weatherDescription(data.weatherCode) : key ? "Conditions unavailable" : "Choose coordinates in Settings";
+  elements["weather-wind"].textContent = windDisplay(data?.windMps);
+  elements["weather-gust"].textContent = windDisplay(data?.gustMps);
+  elements["weather-detail"].textContent = assessment?.reason ?? (key ? "No current weather estimate. Check again before flight." : "Enter coordinates in Settings to see local conditions.");
+  elements["weather-meta"].textContent = data ? `${Number(data.latitude).toFixed(5)}, ${Number(data.longitude).toFixed(5)} · ${new Date(data.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · 10 m model wind` : key ? `${prefs.weather.latitude}, ${prefs.weather.longitude}` : "No location selected";
+}
+
+async function refreshWeather({ force = false, coordinates = null } = {}) {
+  const prefs = state.preferences;
+  if (cleanOutputEnabled() || (!prefs.weather.enabled && !force)) return;
+  const location = coordinates || prefs.weather;
+  const key = location.latitude === null || location.longitude === null ? null : `${location.latitude},${location.longitude}`;
+  if (!key) { state.weatherData = null; state.weatherKey = null; renderWeather(); return; }
+  if (!force && state.weatherKey === key && state.weatherData && Date.now() - new Date(state.weatherData.fetchedAt).getTime() < 5 * 60_000) { renderWeather(); return; }
+  const request = ++state.weatherRequest;
+  state.weatherError = null;
+  if (state.weatherKey !== key) { state.weatherData = null; state.weatherKey = null; }
+  renderWeather();
+  try {
+    const url = new URL("/api/weather", window.location.origin);
+    url.searchParams.set("latitude", String(location.latitude));
+    url.searchParams.set("longitude", String(location.longitude));
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Weather unavailable");
+    const data = await response.json();
+    if (request !== state.weatherRequest) return;
+    state.weatherKey = key;
+    state.weatherData = data;
+    state.weatherError = null;
+  } catch {
+    if (request !== state.weatherRequest) return;
+    state.weatherData = null;
+    state.weatherKey = null;
+    state.weatherError = "UNAVAILABLE";
+  }
+  renderWeather();
+}
 
 function cleanOutputEnabled() {
   return new URLSearchParams(window.location.search).get("output") === "clean";
@@ -211,6 +282,8 @@ function applyPreferences(preferences, { renderData = true } = {}) {
   document.title = `AEROLINK — ${normalized.aircraftName}`;
   elements["track-panel"].classList.toggle("preference-hidden", !normalized.panels.track);
   elements["telemetry-panel"]?.classList.toggle("preference-hidden", !normalized.panels.overlay);
+  state.preferences = normalized;
+  renderWeather();
   elements["identity-section"].classList.toggle("preference-hidden", !normalized.panels.identity);
   elements["signal-metric"].classList.toggle("preference-hidden", !normalized.panels.signal);
   document.documentElement.classList.toggle("clean-output", cleanOutputEnabled());
@@ -412,6 +485,12 @@ function fillSettings(preferences) {
   form.elements.namedItem("aircraftName").value = normalized.aircraftName;
   form.elements.namedItem("uasId").value = normalized.uasId;
   form.elements.namedItem("operatorId").value = normalized.operatorId;
+  form.elements.namedItem("droneModel").value = normalized.droneModel;
+  form.elements.namedItem("weatherEnabled").checked = normalized.weather.enabled;
+  form.elements.namedItem("weatherLatitude").value = normalized.weather.latitude ?? "";
+  form.elements.namedItem("weatherLongitude").value = normalized.weather.longitude ?? "";
+  form.elements.namedItem("pilotLimitMps").value = normalized.weather.pilotLimitMps ?? "";
+  updateWeatherModelNote();
   form.elements.namedItem("panelTrack").checked = normalized.panels.track;
   form.elements.namedItem("panelOverlay").checked = normalized.panels.overlay;
   form.elements.namedItem("panelIdentity").checked = normalized.panels.identity;
@@ -462,6 +541,13 @@ function preferencesFromForm() {
     aircraftName: form.elements.namedItem("aircraftName").value,
     uasId: form.elements.namedItem("uasId").value,
     operatorId: form.elements.namedItem("operatorId").value,
+    droneModel: form.elements.namedItem("droneModel").value,
+    weather: {
+      enabled: form.elements.namedItem("weatherEnabled").checked,
+      latitude: form.elements.namedItem("weatherLatitude").value,
+      longitude: form.elements.namedItem("weatherLongitude").value,
+      pilotLimitMps: form.elements.namedItem("pilotLimitMps").value,
+    },
     panels: {
       track: form.elements.namedItem("panelTrack").checked,
       overlay: form.elements.namedItem("panelOverlay").checked,
@@ -473,13 +559,20 @@ function preferencesFromForm() {
 }
 
 function openSettings(focusIdentity = false) {
-  fillSettings(state.preferences);
+  fillSettings(state.savedPreferences);
   elements["settings-dialog"].showModal();
   if (focusIdentity) requestAnimationFrame(() => elements["settings-form"].elements.namedItem("uasId").focus());
 }
 
+function updateWeatherModelNote() {
+  const profile = droneProfile(elements["drone-model"].value);
+  elements["weather-model-note"].textContent = profile.maxWindMps === null
+    ? `${profile.name}: DJI wind rating not verified. Set a conservative pilot limit; the result will remain Caution at best.`
+    : `${profile.name}: DJI published maximum wind resistance ${profile.maxWindMps} m/s. A lower pilot limit takes precedence.`;
+}
+
 function cancelSettings() {
-  applyPreferences(state.preferences);
+  applyPreferences(state.savedPreferences);
   elements["settings-dialog"].close();
 }
 
@@ -487,7 +580,9 @@ function saveSettings() {
   try {
     if (!preferenceStorage) throw new Error("Storage unavailable");
     state.preferences = savePreferences(preferenceStorage, preferencesFromForm(), preferencesStorageKey);
+    state.savedPreferences = state.preferences;
     applyPreferences(state.preferences);
+    refreshWeather().catch(() => {});
     elements["settings-dialog"].close();
     showToast("Dashboard settings saved on this device");
   } catch {
@@ -497,6 +592,7 @@ function saveSettings() {
 
 async function initialize() {
   applyPreferences(state.preferences);
+  refreshWeather().catch(() => {});
   initializeBroll();
   if (!cleanOutputEnabled()) setTimeout(dismissWelcome, 2600);
   const [configResponse, latestResponse] = await Promise.all([
@@ -520,7 +616,35 @@ async function initialize() {
   await refreshStreamStatus();
   setInterval(refreshStreamStatus, 2500);
   setInterval(updateFreshness, 1000);
+  setInterval(() => { renderWeather(); refreshWeather().catch(() => {}); }, 60_000);
 }
+
+elements["drone-model"].addEventListener("change", updateWeatherModelNote);
+elements["weather-use-location"].addEventListener("click", () => {
+  const status = elements["weather-settings-result"];
+  if (!navigator.geolocation) { status.textContent = "Device location is unavailable. Enter coordinates manually."; return; }
+  status.textContent = "Requesting device location…";
+  navigator.geolocation.getCurrentPosition((position) => {
+    elements["settings-form"].elements.namedItem("weatherLatitude").value = position.coords.latitude.toFixed(6);
+    elements["settings-form"].elements.namedItem("weatherLongitude").value = position.coords.longitude.toFixed(6);
+    status.textContent = "Location filled. Choose Done to save, or check conditions now.";
+  }, () => { status.textContent = "Device location unavailable here. Enter coordinates manually."; }, { enableHighAccuracy: true, timeout: 10_000 });
+});
+elements["weather-check"].addEventListener("click", async () => {
+  const form = elements["settings-form"];
+  const latitude = form.elements.namedItem("weatherLatitude").value;
+  const longitude = form.elements.namedItem("weatherLongitude").value;
+  const status = elements["weather-settings-result"];
+  if (latitude === "" || longitude === "" || !form.checkValidity()) { status.textContent = "Enter valid latitude and longitude first."; return; }
+  status.textContent = "Checking conditions…";
+  const coordinates = { latitude: Number(latitude), longitude: Number(longitude) };
+  await refreshWeather({ force: true, coordinates });
+  const key = `${coordinates.latitude},${coordinates.longitude}`;
+  const profile = droneProfile(form.elements.namedItem("droneModel").value);
+  const pilot = Number(form.elements.namedItem("pilotLimitMps").value) || null;
+  const assessment = state.weatherKey === key ? assessWeather(state.weatherData, profile.id, pilot) : null;
+  status.textContent = assessment ? `${assessment.label}: ${assessment.reason} ${WEATHER_DISCLAIMER}` : "Weather unavailable. Check your connection and try again.";
+});
 
 elements["copy-url"].addEventListener("click", async () => {
   try {

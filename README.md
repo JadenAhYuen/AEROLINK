@@ -30,6 +30,30 @@ are off by default and can be deliberately enabled in Settings.
 - Presents a polished waiting state until a live feed is available.
 - Offers telemetry and a home-relative track as an **in-development** feature,
   with an optional simulated preview in Settings.
+- Shows optional wind, gusts and conditions for chosen coordinates, with a
+  model-specific flight weather estimate independent of telemetry.
+
+## Flight weather
+
+In **Settings → Flight weather**, select a DJI model, enter latitude and longitude,
+and choose **Check conditions now**. Turn on **Weather overlay** and select
+**Done** to keep the panel on the viewer. Each feed saves its own location and
+model. The panel refreshes while open. A device location button is available
+where the browser permits location access; coordinates can always be entered.
+
+The estimate uses Open-Meteo's modelled conditions near the requested point,
+including wind and gusts at **10 m**. It is not a measurement at the aircraft or
+at its flight altitude. The result combines weather with the selected DJI
+model's published maximum wind resistance and an optional lower pilot limit.
+The Lito X1 wind rating could not be verified from DJI's accessible material;
+its profile remains **unverified** and requires a pilot limit for a cautionary
+estimate. A favourable result is not a flight clearance. Wind can change at any
+time. Check conditions on site and fly within the aircraft manual and local rules.
+
+Weather requires internet access. Enabling the overlay or checking conditions
+sends the chosen coordinates to Open-Meteo. Its free API is for noncommercial
+use; deployments needing commercial rights should configure an
+`OPEN_METEO_API_KEY` for the customer API. See [weather method and model sources](docs/WEATHER.md).
 
 ## Start
 

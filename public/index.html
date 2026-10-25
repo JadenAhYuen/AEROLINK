@@ -68,6 +68,17 @@
           </div>
         </section>
 
+        <div class="flight-overlays">
+        <section class="panel weather-panel preference-hidden" id="weather-panel" aria-labelledby="weather-title">
+          <div class="weather-head"><div><p class="section-kicker">LOCAL CONDITIONS · MODEL ESTIMATE</p><h2 id="weather-title">Flight weather</h2></div><span class="weather-status" id="weather-status">SET LOCATION</span></div>
+          <p class="weather-model" id="weather-model">DJI Lito X1</p>
+          <p class="weather-condition" id="weather-condition">Choose coordinates in Settings</p>
+          <div class="weather-winds"><div><span>WIND · 10 M</span><strong id="weather-wind">—</strong></div><div><span>GUSTS · 10 M</span><strong id="weather-gust">—</strong></div></div>
+          <p class="weather-detail" id="weather-detail">A weather estimate can be shown independently of flight telemetry.</p>
+          <p class="weather-meta" id="weather-meta">No location selected</p>
+          <p class="weather-disclaimer" id="weather-disclaimer"></p>
+          <a class="weather-credit" href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Weather: Open-Meteo</a>
+        </section>
         <aside class="panel telemetry-panel" id="telemetry-panel" aria-labelledby="telemetry-title">
           <div class="panel-heading">
             <div><p class="section-kicker">AIRCRAFT DATA</p><h2 id="telemetry-title">Flight telemetry</h2></div>
@@ -97,6 +108,7 @@
           </div>
 
         </aside>
+        </div>
 
         <section class="panel track-panel" id="track-panel" aria-labelledby="track-title">
           <div class="panel-heading track-heading">
@@ -175,9 +187,22 @@
           <section class="settings-group" aria-labelledby="identity-heading">
             <div class="settings-group-title"><h3 id="identity-heading">Aircraft Identity</h3><p>Give this dashboard a recognizable aircraft profile.</p></div>
             <label class="form-row"><span>Aircraft name</span><input name="aircraftName" type="text" maxlength="40" autocomplete="off" placeholder="Lito X1"></label>
+            <label class="form-row"><span>Drone model</span><select name="droneModel" id="drone-model"></select></label>
             <label class="form-row"><span>UAS ID override</span><input name="uasId" type="text" maxlength="64" autocomplete="off" placeholder="Use received ID"></label>
             <label class="form-row"><span>Operator ID override</span><input name="operatorId" type="text" maxlength="64" autocomplete="off" placeholder="Use received ID"></label>
             <p class="settings-note">Overrides change labels on this dashboard only. They do not configure or modify the aircraft's Remote ID broadcast.</p>
+          </section>
+
+          <section class="settings-group" aria-labelledby="weather-heading">
+            <div class="settings-group-title"><h3 id="weather-heading">Flight weather</h3><p>Show an estimate for a chosen location, even without a telemetry receiver.</p></div>
+            <label class="toggle-row"><span><strong>Weather overlay</strong><small>Show conditions above the live view</small></span><input type="checkbox" name="weatherEnabled"><i></i></label>
+            <div class="weather-coordinates"><label class="form-row"><span>Latitude</span><input name="weatherLatitude" type="number" min="-90" max="90" step="any" placeholder="e.g. -20.1609"></label><label class="form-row"><span>Longitude</span><input name="weatherLongitude" type="number" min="-180" max="180" step="any" placeholder="e.g. 57.5012"></label></div>
+            <button class="quiet-button weather-location-button" id="weather-use-location" type="button">Use device location</button>
+            <label class="form-row"><span>Pilot wind limit · m/s</span><input name="pilotLimitMps" type="number" min="0.5" max="20" step="0.1" placeholder="Optional"></label>
+            <p class="settings-note" id="weather-model-note"></p>
+            <button class="demo-button" id="weather-check" type="button">Check conditions now</button>
+            <p class="settings-note" id="weather-settings-result" role="status">Enter coordinates and select a model, then check conditions.</p>
+            <p class="weather-settings-privacy">The selected coordinates are sent to Open-Meteo when you check conditions or enable the overlay. Internet access is required.</p>
           </section>
 
           <section class="settings-group" aria-labelledby="display-heading">

@@ -1,4 +1,5 @@
 const STORAGE_KEY = "lito-dashboard-preferences";
+import { droneProfile } from "./drone-profiles.js";
 
 export const DEFAULT_PREFERENCES = Object.freeze({
   theme: "light",
@@ -7,6 +8,8 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   aircraftName: "Lito X1",
   uasId: "",
   operatorId: "",
+  droneModel: "lito-x1",
+  weather: Object.freeze({ enabled: false, latitude: null, longitude: null, pilotLimitMps: null }),
   panels: Object.freeze({
     track: false,
     overlay: false,
@@ -36,9 +39,16 @@ function panelChoice(value, fallback) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function boundedNumber(value, min, max) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max ? number : null;
+}
+
 export function normalizePreferences(input = {}) {
   const source = input && typeof input === "object" ? input : {};
   const panels = source.panels && typeof source.panels === "object" ? source.panels : {};
+  const weather = source.weather && typeof source.weather === "object" ? source.weather : {};
 
   return {
     theme: choice(source.theme, "theme", DEFAULT_PREFERENCES.theme),
@@ -47,6 +57,13 @@ export function normalizePreferences(input = {}) {
     aircraftName: cleanText(source.aircraftName, DEFAULT_PREFERENCES.aircraftName, 40),
     uasId: cleanText(source.uasId, "", 64),
     operatorId: cleanText(source.operatorId, "", 64),
+    droneModel: droneProfile(source.droneModel).id,
+    weather: {
+      enabled: panelChoice(weather.enabled, false),
+      latitude: boundedNumber(weather.latitude, -90, 90),
+      longitude: boundedNumber(weather.longitude, -180, 180),
+      pilotLimitMps: boundedNumber(weather.pilotLimitMps, 0.5, 20),
+    },
     panels: {
       track: panelChoice(panels.track, DEFAULT_PREFERENCES.panels.track),
       overlay: panelChoice(panels.overlay, DEFAULT_PREFERENCES.panels.overlay),

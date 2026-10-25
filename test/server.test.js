@@ -49,6 +49,18 @@ test("health endpoint reports ready", async () => {
   });
 });
 
+test("weather endpoint validates coordinates and fails closed when provider fails", async () => {
+  await withServer(async (baseUrl) => {
+    const invalid = await fetch(`${baseUrl}/api/weather?latitude=91&longitude=0`);
+    assert.equal(invalid.status, 400);
+    const missing = await fetch(`${baseUrl}/api/weather?latitude=&longitude=0`);
+    assert.equal(missing.status, 400);
+    const failed = await fetch(`${baseUrl}/api/weather?latitude=52.52&longitude=13.41`);
+    assert.equal(failed.status, 503);
+    assert.match((await failed.json()).error, /No flight assessment/);
+  }, { mediaMtxApiUrl: null, weatherOptions: { fetchWeather: async () => { throw new Error("offline"); } } });
+});
+
 test("config uses the request hostname for short RTMP and WebRTC URLs", async () => {
   await withServer(async (baseUrl) => {
     const target = new URL(baseUrl);

@@ -12,6 +12,7 @@ import {
 
 test("preference defaults favor the daylight appearance and metric flight data", () => {
   assert.deepEqual(DEFAULT_PREFERENCES, {
+    schemaVersion: 2,
     theme: "light",
     accent: "blue",
     units: "metric",
@@ -43,6 +44,7 @@ test("normalizePreferences accepts known choices and trims dashboard identity ov
       panels: { track: false, overlay: false, identity: true, signal: false, rawOutput: false },
     }),
     {
+      schemaVersion: 2,
       theme: "light",
       accent: "indigo",
       units: "aviation",
@@ -82,6 +84,17 @@ test("overlay layout is saved per feed and invalid geometry is ignored", () => {
   assert.deepEqual(valid.overlayLayout.weather, { x: 120, y: 96, width: 300, height: 190 });
   assert.equal(valid.overlayLayout.track, null);
   assert.equal(normalizePreferences({ overlayLayout: { weather: { x: -10, y: 0, width: 300, height: 190 } } }).overlayLayout.weather, null);
+});
+
+test("legacy preset names migrate once while explicit current model choices remain", () => {
+  const values = new Map([["old", JSON.stringify({ aircraftName: "Lito X1", droneModel: "lito-x1", weather: { latitude: -20.16, longitude: 57.5 } })]]);
+  const storage = { getItem: (key) => values.get(key), setItem: (key, value) => values.set(key, value) };
+  const migrated = loadPreferences(storage, "old");
+  assert.equal(migrated.aircraftName, "Aircraft");
+  assert.equal(migrated.droneModel, "none");
+  assert.deepEqual([migrated.weather.latitude, migrated.weather.longitude], [-20.16, 57.5]);
+  savePreferences(storage, { ...migrated, aircraftName: "Lito X1", droneModel: "lito-x1" }, "old");
+  assert.equal(loadPreferences(storage, "old").droneModel, "lito-x1");
 });
 
 test("dashboard ID overrides take precedence without changing received telemetry", () => {

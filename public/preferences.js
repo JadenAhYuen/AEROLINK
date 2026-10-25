@@ -2,6 +2,7 @@ const STORAGE_KEY = "lito-dashboard-preferences";
 import { droneProfile } from "./drone-profiles.js";
 
 export const DEFAULT_PREFERENCES = Object.freeze({
+  schemaVersion: 2,
   theme: "light",
   accent: "blue",
   units: "metric",
@@ -62,6 +63,7 @@ export function normalizePreferences(input = {}) {
   const overlayLayout = source.overlayLayout && typeof source.overlayLayout === "object" ? source.overlayLayout : {};
 
   return {
+    schemaVersion: 2,
     theme: choice(source.theme, "theme", DEFAULT_PREFERENCES.theme),
     accent: choice(source.accent, "accent", DEFAULT_PREFERENCES.accent),
     units: choice(source.units, "units", DEFAULT_PREFERENCES.units),
@@ -93,7 +95,13 @@ export function normalizePreferences(input = {}) {
 export function loadPreferences(storage, storageKey = STORAGE_KEY) {
   try {
     const saved = storage?.getItem(storageKey);
-    return saved ? normalizePreferences(JSON.parse(saved)) : normalizePreferences();
+    if (!saved) return normalizePreferences();
+    const parsed = JSON.parse(saved);
+    if (parsed && typeof parsed === "object" && !parsed.schemaVersion) {
+      if (parsed.aircraftName === "Lito X1") parsed.aircraftName = "Aircraft";
+      if (parsed.droneModel === "lito-x1") parsed.droneModel = "none";
+    }
+    return normalizePreferences(parsed);
   } catch {
     return normalizePreferences();
   }

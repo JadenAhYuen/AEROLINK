@@ -1,4 +1,4 @@
-# AEROLINK 0.5.0
+# AEROLINK 0.5.1
 
 Windows portable distribution: extract the complete ZIP, then open AEROLINK.exe.
 Keep the launcher open during use; closing it stops the services it started.
@@ -11,6 +11,8 @@ No separate Node.js or Docker installation is required.
 - Settings save while you edit; Close simply dismisses the panel. A reset action
   restores default overlay positions.
 - The stream key being prepared is retained when Settings is closed.
+- Profiles saved by older versions with the old Lito X1 preset migrate to the
+  neutral default once. Deliberate choices made in this version remain saved.
 
 Weather is an approximate model estimate, not an on-site or altitude-specific
 measurement or a clearance to fly. Internet access is required. Open-Meteo's

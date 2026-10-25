@@ -1,0 +1,606 @@
+import {
+  DEFAULT_PREFERENCES,
+  convertTelemetry,
+  loadPreferences,
+  normalizePreferences,
+  resolveIdentity,
+  savePreferences,
+} from "./preferences.js";
+
+const elementIds = [
+  "video-status", "telemetry-status", "video-frame", "video-placeholder", "live-badge",
+  "rtmp-url", "copy-url", "reload-video", "freshness", "freshness-label", "source-badge",
+  "height-value", "height-unit", "speed-value", "speed-unit", "distance-value", "distance-unit",
+  "course-value", "course-arrow", "bearing-value", "signal-value", "uas-id", "operator-id",
+  "position-value", "demo-button", "demo-label", "telemetry-endpoint", "track-line",
+  "aircraft-marker", "track-empty", "scale-label", "toast", "aircraft-name", "settings-button",
+  "settings-dialog", "settings-form", "settings-cancel", "reset-settings", "edit-identity",
+  "track-panel", "identity-section", "signal-metric", "uas-override-badge", "operator-override-badge",
+  "settings-rtmp-url", "settings-copy-url", "settings-stream-key", "settings-new-key", "settings-switch-feed", "settings-viewer-url", "telemetry-panel",
+  "placeholder-reel-a", "placeholder-reel-b", "welcome-screen", "skip-welcome", "clean-output-note", "clean-output-url", "clean-output-copy", "clean-output-open", "settings-full-rtmp-url",
+];
+
+const elements = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
+const colorSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+const streamKeyPattern = /^[a-z0-9][a-z0-9-]{0,15}$/;
+
+function currentStreamKey() {
+  const key = new URLSearchParams(window.location.search).get("stream")?.toLowerCase() ?? "x";
+  return streamKeyPattern.test(key) ? key : "x";
+}
+
+function streamApi(path) {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set("stream", currentStreamKey());
+  return `${url.pathname}${url.search}`;
+}
+
+function randomStreamKey() {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return `drone-${bytes[0].toString(36).slice(0, 6)}`;
+}
+
+const preferencesStorageKey = `aerolink-preferences:${currentStreamKey()}`;
+let preferenceStorage;
+try {
+  preferenceStorage = window.localStorage;
+  if (currentStreamKey() === "x" && !preferenceStorage.getItem(preferencesStorageKey)) {
+    savePreferences(preferenceStorage, loadPreferences(preferenceStorage), preferencesStorageKey);
+  }
+} catch { }
+const state = {
+  config: null,
+  telemetry: null,
+  trail: [],
+  simulatorRunning: false,
+  videoLive: false,
+  toastTimer: null,
+  preferences: loadPreferences(preferenceStorage, preferencesStorageKey),
+};
+
+function cleanOutputEnabled() {
+  return new URLSearchParams(window.location.search).get("output") === "clean";
+}
+
+function setVideoSource(video, source) {
+  video.src = source;
+  video.load();
+}
+
+async function initializeBroll() {
+  try {
+    const response = await fetch("/api/broll", { cache: "no-store" });
+    const playlist = await response.json();
+    const clips = Array.isArray(playlist.clips) ? playlist.clips.filter((clip) => typeof clip === "string") : [];
+    if (!clips.length) return;
+    let active = elements["placeholder-reel-a"];
+    let waiting = elements["placeholder-reel-b"];
+    const fadeDurationMs = 1600;
+    let currentIndex = 0;
+    let transitioning = false;
+
+    const clipUrl = (index) => `/assets/broll/${encodeURIComponent(clips[index])}`;
+    const loadClip = (video, index) => {
+      video.dataset.clipIndex = String(index);
+      setVideoSource(video, clipUrl(index));
+    };
+    const cueNext = () => {
+      const nextIndex = (currentIndex + 1) % clips.length;
+      if (waiting.dataset.clipIndex !== String(nextIndex)) loadClip(waiting, nextIndex);
+    };
+    const beginTransition = async () => {
+      if (transitioning) return;
+      if (waiting.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return;
+      transitioning = true;
+      const incoming = waiting;
+      const outgoing = active;
+      try {
+        incoming.currentTime = 0;
+        await incoming.play();
+        // Fade decoded frames over the outgoing picture to avoid a dark midpoint.
+        incoming.style.zIndex = "2";
+        outgoing.style.zIndex = "1";
+        if (incoming.requestVideoFrameCallback) {
+          await Promise.race([
+            new Promise((resolve) => incoming.requestVideoFrameCallback(resolve)),
+            new Promise((resolve) => setTimeout(resolve, 500)),
+          ]);
+        }
+        incoming.classList.add("active");
+        await new Promise((resolve) => setTimeout(resolve, fadeDurationMs + 80));
+        outgoing.classList.remove("active");
+        outgoing.pause();
+        outgoing.style.zIndex = "0";
+        [active, waiting] = [incoming, outgoing];
+        currentIndex = Number(active.dataset.clipIndex);
+        cueNext();
+      } catch {
+        // Keep the last decoded picture visible if a clip cannot play.
+      } finally { transitioning = false; }
+    };
+
+    for (const video of [active, waiting]) {
+      video.addEventListener("timeupdate", () => {
+        if (video === active && video.duration - video.currentTime <= fadeDurationMs / 1000) beginTransition();
+      });
+      video.addEventListener("canplay", () => {
+        if (active.ended) beginTransition();
+      });
+      video.addEventListener("ended", () => {
+        if (video === active) beginTransition();
+      });
+    }
+    loadClip(active, currentIndex);
+    cueNext();
+    active.play().catch(() => {});
+  } catch {
+    // A missing custom reel never prevents the live viewer from working.
+  }
+}
+
+function dismissWelcome() {
+  elements["welcome-screen"]?.classList.add("hidden");
+}
+
+function formatNumber(value, digits = null) {
+  if (!Number.isFinite(value)) return "-";
+  return digits === null ? String(value) : value.toFixed(digits);
+}
+
+function distanceAndBearing(fromLat, fromLon, toLat, toLon) {
+  const radians = (degrees) => (degrees * Math.PI) / 180;
+  const degrees = (value) => (value * 180) / Math.PI;
+  const radius = 6_371_000;
+  const phi1 = radians(fromLat);
+  const phi2 = radians(toLat);
+  const deltaPhi = radians(toLat - fromLat);
+  const deltaLambda = radians(toLon - fromLon);
+  const a = Math.sin(deltaPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+  const distanceM = radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const y = Math.sin(deltaLambda) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+  return { distanceM, bearingDeg: (degrees(Math.atan2(y, x)) + 360) % 360 };
+}
+
+function localMeters(latitude, longitude, homeLatitude, homeLongitude) {
+  const metersPerLatitudeDegree = 111_320;
+  const metersPerLongitudeDegree = 111_320 * Math.cos((homeLatitude * Math.PI) / 180);
+  return {
+    x: (longitude - homeLongitude) * metersPerLongitudeDegree,
+    y: (latitude - homeLatitude) * metersPerLatitudeDegree,
+  };
+}
+
+function setStatus(element, stateName, label) {
+  element.dataset.state = stateName;
+  element.lastElementChild.textContent = label;
+}
+
+function showToast(message) {
+  elements.toast.textContent = message;
+  elements.toast.classList.add("visible");
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => elements.toast.classList.remove("visible"), 2200);
+}
+
+function effectiveDarkMode(theme = state.preferences.theme) {
+  return theme === "dark" || (theme === "system" && colorSchemeQuery.matches);
+}
+
+function updateBrowserChrome(theme = state.preferences.theme) {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = effectiveDarkMode(theme) ? "#080d15" : "#edf3f9";
+}
+
+function renderIdentity() {
+  const identity = resolveIdentity(state.telemetry ?? {}, state.preferences);
+  elements["uas-id"].textContent = identity.uasId;
+  elements["operator-id"].textContent = identity.operatorId;
+  elements["uas-override-badge"].classList.toggle("visible", identity.uasOverridden);
+  elements["operator-override-badge"].classList.toggle("visible", identity.operatorOverridden);
+}
+
+function applyPreferences(preferences, { renderData = true } = {}) {
+  const normalized = normalizePreferences(preferences);
+  document.documentElement.dataset.theme = normalized.theme;
+  document.documentElement.dataset.accent = normalized.accent;
+  elements["aircraft-name"].textContent = normalized.aircraftName;
+  document.title = `AEROLINK — ${normalized.aircraftName}`;
+  elements["track-panel"].classList.toggle("preference-hidden", !normalized.panels.track);
+  elements["telemetry-panel"]?.classList.toggle("preference-hidden", !normalized.panels.overlay);
+  elements["identity-section"].classList.toggle("preference-hidden", !normalized.panels.identity);
+  elements["signal-metric"].classList.toggle("preference-hidden", !normalized.panels.signal);
+  document.documentElement.classList.toggle("clean-output", cleanOutputEnabled());
+  updateBrowserChrome(normalized.theme);
+
+  if (renderData) {
+    renderIdentity();
+    renderTelemetryValues();
+    updateTrack();
+  }
+}
+
+function getHomeVector(telemetry) {
+  if (!telemetry || !Number.isFinite(telemetry.homeLatitude) || !Number.isFinite(telemetry.homeLongitude)) {
+    return null;
+  }
+  return {
+    fromHome: distanceAndBearing(
+      telemetry.homeLatitude,
+      telemetry.homeLongitude,
+      telemetry.latitude,
+      telemetry.longitude,
+    ),
+    toHome: distanceAndBearing(
+      telemetry.latitude,
+      telemetry.longitude,
+      telemetry.homeLatitude,
+      telemetry.homeLongitude,
+    ),
+  };
+}
+
+function renderTelemetryValues() {
+  const telemetry = state.telemetry;
+  const homeVector = getHomeVector(telemetry);
+  const display = convertTelemetry({
+    heightM: telemetry?.heightM,
+    groundSpeedMps: telemetry?.groundSpeedMps,
+    distanceM: homeVector?.fromHome.distanceM,
+  }, state.preferences.units);
+
+  elements["height-value"].textContent = formatNumber(display.height.value);
+  elements["height-unit"].textContent = display.height.unit;
+  elements["speed-value"].textContent = formatNumber(display.speed.value);
+  elements["speed-unit"].textContent = display.speed.unit;
+  elements["distance-value"].textContent = formatNumber(display.distance.value);
+  elements["distance-unit"].textContent = display.distance.unit;
+
+  if (!telemetry) {
+    elements["course-value"].textContent = "-";
+    elements["bearing-value"].textContent = "-";
+    elements["signal-value"].textContent = "-";
+    elements["position-value"].textContent = "-";
+    renderIdentity();
+    return;
+  }
+
+  elements["course-value"].textContent = formatNumber(telemetry.courseDeg, 0);
+  elements["course-arrow"].style.transform = `rotate(${telemetry.courseDeg ?? 0}deg)`;
+  elements["bearing-value"].textContent = homeVector ? formatNumber(homeVector.toHome.bearingDeg, 0) : "-";
+  elements["signal-value"].textContent = formatNumber(telemetry.rssiDbm, 0);
+  elements["position-value"].textContent = `${telemetry.latitude.toFixed(6)}, ${telemetry.longitude.toFixed(6)}`;
+  renderIdentity();
+}
+
+function updateTrack() {
+  const telemetry = state.telemetry;
+  if (!telemetry || !Number.isFinite(telemetry.homeLatitude) || !Number.isFinite(telemetry.homeLongitude)) {
+    elements["track-empty"].classList.remove("hidden");
+    elements["scale-label"].textContent = "Range: waiting for position";
+    return;
+  }
+  elements["track-empty"].classList.add("hidden");
+
+  const points = state.trail
+    .filter((point) => Number.isFinite(point.homeLatitude) && Number.isFinite(point.homeLongitude))
+    .map((point) => ({
+      ...localMeters(point.latitude, point.longitude, telemetry.homeLatitude, telemetry.homeLongitude),
+      courseDeg: point.courseDeg,
+    }));
+  if (!points.length) return;
+
+  const maxDistance = Math.max(25, ...points.map((point) => Math.hypot(point.x, point.y)));
+  const range = Math.ceil(maxDistance / 25) * 25;
+  const scale = 150 / range;
+  const svgPoints = points.map((point) => `${350 + point.x * scale},${165 - point.y * scale}`).join(" ");
+  elements["track-line"].setAttribute("points", svgPoints);
+
+  const latest = points.at(-1);
+  const course = Number.isFinite(latest.courseDeg) ? latest.courseDeg : 0;
+  elements["aircraft-marker"].setAttribute(
+    "transform",
+    `translate(${350 + latest.x * scale} ${165 - latest.y * scale}) rotate(${course})`,
+  );
+  const converted = convertTelemetry({ distanceM: range }, state.preferences.units).distance;
+  elements["scale-label"].textContent = `Outer range: ${converted.value} ${converted.unit}`;
+}
+
+function updateFreshness() {
+  if (!state.telemetry) {
+    setStatus(elements["telemetry-status"], "idle", "Telemetry · In development");
+    elements["freshness-label"].textContent = "Waiting for receiver";
+    elements.freshness.classList.remove("stale");
+    return;
+  }
+
+  const ageSeconds = Math.max(0, (Date.now() - Date.parse(state.telemetry.receivedAt)) / 1000);
+  const stale = ageSeconds > 5;
+  setStatus(
+    elements["telemetry-status"],
+    stale ? "stale" : "live",
+    state.telemetry.source === "simulator" ? (stale ? "Demo stopped" : "Demo · Simulated") : (stale ? `Receiver stale - ${Math.floor(ageSeconds)}s` : "Receiver data"),
+  );
+  elements.freshness.classList.toggle("stale", stale);
+  elements["freshness-label"].textContent = stale
+    ? `Last packet ${Math.floor(ageSeconds)} seconds ago`
+    : `Updated ${ageSeconds < 1 ? "now" : `${Math.floor(ageSeconds)}s ago`}`;
+  elements.freshness.querySelector(".freshness-line span").style.transform = `scaleX(${Math.max(0, 1 - ageSeconds / 5)})`;
+}
+
+function updateTelemetry(telemetry) {
+  const previous = state.telemetry;
+  const sourceChanged = previous && previous.source !== telemetry.source;
+  const aircraftChanged = previous?.uasId && telemetry.uasId && previous.uasId !== telemetry.uasId;
+  const homeChanged = previous &&
+    Number.isFinite(previous.homeLatitude) &&
+    Number.isFinite(previous.homeLongitude) &&
+    Number.isFinite(telemetry.homeLatitude) &&
+    Number.isFinite(telemetry.homeLongitude) &&
+    (Math.abs(previous.homeLatitude - telemetry.homeLatitude) > 0.001 ||
+      Math.abs(previous.homeLongitude - telemetry.homeLongitude) > 0.001);
+  if (sourceChanged || aircraftChanged || homeChanged) state.trail = [];
+
+  state.telemetry = telemetry;
+  state.trail.push(telemetry);
+  if (state.trail.length > 180) state.trail.shift();
+
+  const simulated = telemetry.source === "simulator";
+  elements["source-badge"].textContent = simulated ? "SIMULATED" : "RECEIVER DATA";
+  elements["source-badge"].className = `source-badge ${simulated ? "demo" : "real"}`;
+  renderTelemetryValues();
+  updateFreshness();
+  updateTrack();
+}
+
+async function refreshStreamStatus() {
+  try {
+    const response = await fetch(streamApi("/api/stream/status"), { cache: "no-store" });
+    const status = await response.json();
+    const wasLive = state.videoLive;
+    state.videoLive = status.live === true;
+    document.body.classList.toggle("video-live", state.videoLive);
+    setStatus(elements["video-status"], state.videoLive ? "live" : "idle", state.videoLive ? "Video live" : "Video waiting");
+    elements["video-placeholder"].classList.toggle("hidden", state.videoLive);
+    elements["live-badge"].classList.toggle("visible", state.videoLive);
+    if (state.videoLive && !wasLive) reloadVideo();
+  } catch {
+    state.videoLive = false;
+    document.body.classList.remove("video-live");
+    elements["video-placeholder"].classList.remove("hidden");
+    elements["live-badge"].classList.remove("visible");
+    setStatus(elements["video-status"], "idle", "Gateway offline");
+  }
+}
+
+function reloadVideo() {
+  if (!state.config) return;
+  const url = new URL(state.config.webrtcUrl);
+  url.searchParams.set("autoplay", "true");
+  url.searchParams.set("muted", "true");
+  url.searchParams.set("controls", cleanOutputEnabled() ? "false" : "true");
+  url.searchParams.set("playsInline", "true");
+  url.searchParams.set("reload", Date.now().toString());
+  elements["video-frame"].src = url.toString();
+}
+
+function renderSimulatorState() {
+  elements["demo-button"].classList.toggle("running", state.simulatorRunning);
+  elements["demo-label"].textContent = state.simulatorRunning ? "Stop telemetry demo" : "Run telemetry demo";
+  elements["demo-button"].querySelector(".play-icon").textContent = state.simulatorRunning ? "■" : "▶";
+}
+
+async function toggleSimulator() {
+  const action = state.simulatorRunning ? "stop" : "start";
+  const response = await fetch(streamApi(`/api/simulator/${action}`), { method: "POST" });
+  if (!response.ok) throw new Error("Simulator unavailable");
+  const body = await response.json();
+  state.simulatorRunning = body.simulator.running;
+  renderSimulatorState();
+  showToast(state.simulatorRunning ? "Simulated flight started" : "Simulated flight stopped");
+}
+
+function fillSettings(preferences) {
+  const normalized = normalizePreferences(preferences);
+  const form = elements["settings-form"];
+  form.elements.namedItem("theme").value = normalized.theme;
+  form.elements.namedItem("accent").value = normalized.accent;
+  form.elements.namedItem("units").value = normalized.units;
+  form.elements.namedItem("aircraftName").value = normalized.aircraftName;
+  form.elements.namedItem("uasId").value = normalized.uasId;
+  form.elements.namedItem("operatorId").value = normalized.operatorId;
+  form.elements.namedItem("panelTrack").checked = normalized.panels.track;
+  form.elements.namedItem("panelOverlay").checked = normalized.panels.overlay;
+  form.elements.namedItem("panelIdentity").checked = normalized.panels.identity;
+  form.elements.namedItem("panelSignal").checked = normalized.panels.signal;
+  form.elements.namedItem("rawOutput").checked = normalized.panels.rawOutput || cleanOutputEnabled();
+  updateCleanOutputLink(form.elements.namedItem("rawOutput").checked);
+  elements["settings-stream-key"].value = currentStreamKey();
+  const viewerUrl = new URL(window.location.href);
+  viewerUrl.searchParams.set("stream", currentStreamKey());
+  viewerUrl.searchParams.delete("output");
+  elements["settings-viewer-url"].textContent = viewerUrl.toString();
+  updateConnectionLinks();
+}
+
+function updateCleanOutputLink(enabled) {
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.set("stream", settingsStreamKey());
+  cleanUrl.searchParams.set("output", "clean");
+  elements["clean-output-url"].textContent = cleanUrl.toString();
+  elements["clean-output-open"].href = cleanUrl.toString();
+  elements["clean-output-note"].hidden = !enabled;
+}
+
+function settingsStreamKey() {
+  const key = elements["settings-stream-key"].value.trim().toLowerCase();
+  return streamKeyPattern.test(key) ? key : currentStreamKey();
+}
+
+function updateConnectionLinks() {
+  if (!state.config) return;
+  const key = settingsStreamKey();
+  const serverUrl = state.config.rtmpServerUrl ?? state.config.rtmpUrl.replace(/\/[^/]+$/, "");
+  elements["settings-rtmp-url"].textContent = serverUrl;
+  elements["settings-full-rtmp-url"].textContent = `${serverUrl}/${key}`;
+  const viewerUrl = new URL(window.location.href);
+  viewerUrl.searchParams.set("stream", key);
+  viewerUrl.searchParams.delete("output");
+  elements["settings-viewer-url"].textContent = viewerUrl.toString();
+  updateCleanOutputLink(elements["settings-form"].elements.namedItem("rawOutput").checked);
+}
+
+function preferencesFromForm() {
+  const form = elements["settings-form"];
+  return normalizePreferences({
+    theme: form.elements.namedItem("theme").value,
+    accent: form.elements.namedItem("accent").value,
+    units: form.elements.namedItem("units").value,
+    aircraftName: form.elements.namedItem("aircraftName").value,
+    uasId: form.elements.namedItem("uasId").value,
+    operatorId: form.elements.namedItem("operatorId").value,
+    panels: {
+      track: form.elements.namedItem("panelTrack").checked,
+      overlay: form.elements.namedItem("panelOverlay").checked,
+      identity: form.elements.namedItem("panelIdentity").checked,
+      signal: form.elements.namedItem("panelSignal").checked,
+      rawOutput: form.elements.namedItem("rawOutput").checked,
+    },
+  });
+}
+
+function openSettings(focusIdentity = false) {
+  fillSettings(state.preferences);
+  elements["settings-dialog"].showModal();
+  if (focusIdentity) requestAnimationFrame(() => elements["settings-form"].elements.namedItem("uasId").focus());
+}
+
+function cancelSettings() {
+  applyPreferences(state.preferences);
+  elements["settings-dialog"].close();
+}
+
+function saveSettings() {
+  try {
+    if (!preferenceStorage) throw new Error("Storage unavailable");
+    state.preferences = savePreferences(preferenceStorage, preferencesFromForm(), preferencesStorageKey);
+    applyPreferences(state.preferences);
+    elements["settings-dialog"].close();
+    showToast("Dashboard settings saved on this device");
+  } catch {
+    showToast("Settings could not be saved in this browser");
+  }
+}
+
+async function initialize() {
+  applyPreferences(state.preferences);
+  initializeBroll();
+  if (!cleanOutputEnabled()) setTimeout(dismissWelcome, 2600);
+  const [configResponse, latestResponse] = await Promise.all([
+    fetch(streamApi("/api/config")),
+    fetch(streamApi("/api/telemetry/latest")),
+  ]);
+  state.config = await configResponse.json();
+  const latest = await latestResponse.json();
+  state.simulatorRunning = latest.simulator.running;
+  renderSimulatorState();
+  elements["rtmp-url"].textContent = state.config.rtmpUrl;
+  elements["settings-rtmp-url"].textContent = state.config.rtmpServerUrl;
+  elements["telemetry-endpoint"].textContent = `Receiver endpoint: ${state.config.telemetryUrl}`;
+  reloadVideo();
+  if (latest.telemetry) updateTelemetry(latest.telemetry);
+
+  const events = new EventSource(streamApi("/api/events"));
+  events.addEventListener("telemetry", (event) => updateTelemetry(JSON.parse(event.data)));
+  events.onerror = () => setStatus(elements["telemetry-status"], "stale", "Receiver reconnecting");
+
+  await refreshStreamStatus();
+  setInterval(refreshStreamStatus, 2500);
+  setInterval(updateFreshness, 1000);
+}
+
+elements["copy-url"].addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(elements["rtmp-url"].textContent);
+    showToast("RTMP address copied");
+  } catch {
+    showToast("Select and copy the RTMP address manually");
+  }
+});
+elements["settings-copy-url"].addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(elements["settings-rtmp-url"].textContent);
+    showToast("RTMP address copied");
+  } catch {
+    showToast("Select and copy the RTMP address manually");
+  }
+});
+elements["clean-output-copy"].addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(elements["clean-output-url"].textContent);
+    showToast("Clean output link copied");
+  } catch {
+    showToast("Select and copy the clean output link manually");
+  }
+});
+elements["settings-new-key"].addEventListener("click", () => {
+  elements["settings-stream-key"].value = randomStreamKey();
+  updateConnectionLinks();
+});
+elements["settings-stream-key"].addEventListener("input", updateConnectionLinks);
+elements["settings-switch-feed"].addEventListener("click", () => {
+  const streamKey = elements["settings-stream-key"].value.trim().toLowerCase();
+  if (!streamKeyPattern.test(streamKey)) {
+    showToast("Use 1–16 lowercase letters, numbers, or hyphens");
+    return;
+  }
+  const url = new URL(window.location.href);
+  if (streamKey === "x") url.searchParams.delete("stream");
+  else url.searchParams.set("stream", streamKey);
+  window.location.assign(url);
+});
+elements["reload-video"].addEventListener("click", reloadVideo);
+elements["demo-button"].addEventListener("click", () => toggleSimulator().catch(() => showToast("Could not change demo state")));
+elements["settings-button"].addEventListener("click", () => openSettings());
+elements["edit-identity"].addEventListener("click", () => openSettings(true));
+elements["settings-cancel"].addEventListener("click", cancelSettings);
+elements["settings-form"].addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveSettings();
+});
+elements["settings-form"].addEventListener("change", (event) => {
+  if (event.target.name === "rawOutput") updateCleanOutputLink(event.target.checked);
+  if (["theme", "accent", "units", "panelOverlay", "panelTrack", "panelIdentity", "panelSignal"].includes(event.target.name)) {
+    applyPreferences(preferencesFromForm(), { renderData: false });
+  }
+});
+elements["reset-settings"].addEventListener("click", () => {
+  fillSettings(DEFAULT_PREFERENCES);
+  applyPreferences(DEFAULT_PREFERENCES, { renderData: false });
+  showToast("Defaults ready - choose Done to save");
+});
+elements["settings-dialog"].addEventListener("cancel", (event) => {
+  event.preventDefault();
+  cancelSettings();
+});
+elements["settings-dialog"].addEventListener("click", (event) => {
+  if (event.target === elements["settings-dialog"]) cancelSettings();
+});
+elements["skip-welcome"]?.addEventListener("click", dismissWelcome);
+document.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === ",") {
+    event.preventDefault();
+    if (!elements["settings-dialog"].open) openSettings();
+  }
+});
+colorSchemeQuery.addEventListener("change", () => {
+  if (state.preferences.theme === "system") updateBrowserChrome();
+});
+
+initialize().catch((error) => {
+  console.error(error);
+  showToast("Dashboard backend is unavailable");
+});

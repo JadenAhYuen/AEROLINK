@@ -1,0 +1,17 @@
+{
+  "name": "aerolink",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local low-latency DJI RTMP and Remote ID dashboard",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage",
+    "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

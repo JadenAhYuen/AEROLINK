@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#eef4fb">
+    <title>AEROLINK Flight Viewer</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to flight data</a>
+    <div class="ambient" aria-hidden="true">
+      <span class="ambient-orb orb-one"></span>
+      <span class="ambient-orb orb-two"></span>
+      <span class="ambient-grid"></span>
+    </div>
+
+    <div class="shell">
+      <header class="topbar glass-bar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"><img src="/assets/aerolink-mark.svg" alt=""></div>
+          <div class="brand-copy">
+            <p class="eyebrow">LOCAL GROUND STATION <span id="aircraft-name">Lito X1</span></p>
+            <h1>AEROLINK</h1>
+          </div>
+        </div>
+
+        <div class="toolbar-cluster">
+          <div class="system-status" aria-label="System status">
+            <span class="status-pill" id="video-status" data-state="idle"><i></i><span>Video waiting</span></span>
+            <span class="status-pill" id="telemetry-status" data-state="idle"><i></i><span>Remote ID waiting</span></span>
+          </div>
+          <button class="toolbar-button" id="settings-button" type="button" aria-label="Open dashboard settings" title="Dashboard Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z"/><path d="M19.2 13.1c.05-.36.05-1.84 0-2.2l2-1.55-2-3.46-2.47 1a8.1 8.1 0 0 0-1.9-1.1L14.47 3h-4l-.4 2.79a8.1 8.1 0 0 0-1.9 1.1l-2.47-1-2 3.46 2 1.55a8.17 8.17 0 0 0 0 2.2l-2 1.55 2 3.46 2.47-1a8.1 8.1 0 0 0 1.9 1.1l.4 2.79h4l.4-2.79a8.1 8.1 0 0 0 1.9-1.1l2.47 1 2-3.46-2.04-1.55Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="dashboard" id="main-content">
+        <section class="panel video-panel" aria-labelledby="video-title">
+          <div class="panel-heading video-heading">
+            <div><p class="section-kicker">CAMERA 01</p><h2 id="video-title">Live aircraft feed</h2></div>
+            <button class="quiet-button" id="reload-video" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"/></svg><span>Reload</span>
+            </button>
+          </div>
+
+          <div class="video-stage">
+            <iframe id="video-frame" title="DJI live video" allow="autoplay; fullscreen" allowfullscreen></iframe>
+            <div class="video-placeholder" id="video-placeholder">
+              <video class="placeholder-reel active" id="placeholder-reel-a" autoplay muted playsinline preload="auto" aria-hidden="true"></video>
+              <video class="placeholder-reel" id="placeholder-reel-b" muted playsinline preload="auto" aria-hidden="true"></video>
+              <div class="placeholder-shade"></div>
+              <div class="placeholder-copy">
+                <div class="reticle" aria-hidden="true"><span></span></div>
+                <strong>Ready for your DJI stream</strong>
+                <p>Open Settings for the three quick connection steps.</p>
+              </div>
+            </div>
+            <div class="live-badge" id="live-badge"><i></i> LIVE</div>
+          </div>
+
+          <div class="stream-instruction">
+            <div class="stream-address"><span class="field-label">DJI FLY RTMP ADDRESS</span><code id="rtmp-url">rtmp://laptop-ip/x</code></div>
+            <button class="primary-button" id="copy-url" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg><span>Copy</span>
+            </button>
+          </div>
+        </section>
+
+        <aside class="panel telemetry-panel" id="telemetry-panel" aria-labelledby="telemetry-title">
+          <div class="panel-heading">
+            <div><p class="section-kicker">AIRCRAFT DATA</p><h2 id="telemetry-title">Flight telemetry</h2></div>
+            <span class="source-badge" id="source-badge">NO DATA</span>
+          </div>
+          <div class="freshness" id="freshness"><div class="freshness-line" aria-hidden="true"><span></span></div><span id="freshness-label">Waiting for receiver</span></div>
+
+          <div class="primary-metrics">
+            <article class="metric primary"><span class="metric-label">HEIGHT</span><div><strong id="height-value">-</strong><small id="height-unit">m</small></div></article>
+            <article class="metric primary"><span class="metric-label">GROUND SPEED</span><div><strong id="speed-value">-</strong><small id="speed-unit">m/s</small></div></article>
+          </div>
+
+          <div class="secondary-metrics">
+            <article class="metric"><span class="metric-label">DISTANCE HOME</span><strong id="distance-value">-</strong><small id="distance-unit">m</small></article>
+            <article class="metric course-metric"><span class="metric-label">COURSE</span><div class="course-value"><span class="course-arrow" id="course-arrow" aria-hidden="true">&#8593;</span><strong id="course-value">-</strong><small>&deg;</small></div></article>
+            <article class="metric"><span class="metric-label">BEARING HOME</span><strong id="bearing-value">-</strong><small>degrees</small></article>
+            <article class="metric" id="signal-metric"><span class="metric-label">RECEIVER SIGNAL</span><strong id="signal-value">-</strong><small>dBm</small></article>
+          </div>
+
+          <div class="identity-section" id="identity-section">
+            <div class="subsection-heading"><span>IDENTITY</span><button class="text-button" id="edit-identity" type="button">Edit</button></div>
+            <div class="identity-list">
+              <div><span>UAS ID <em class="override-tag" id="uas-override-badge">OVERRIDE</em></span><strong id="uas-id">Not received</strong></div>
+              <div><span>Operator ID <em class="override-tag" id="operator-override-badge">OVERRIDE</em></span><strong id="operator-id">Not received</strong></div>
+              <div><span>Position</span><strong id="position-value">-</strong></div>
+            </div>
+          </div>
+
+        </aside>
+
+        <section class="panel track-panel" id="track-panel" aria-labelledby="track-title">
+          <div class="panel-heading track-heading">
+            <div><p class="section-kicker">HOME-RELATIVE VIEW</p><h2 id="track-title">Flight track</h2></div>
+            <div class="track-legend" aria-label="Map legend"><span><i class="home-dot"></i> Home</span><span><i class="aircraft-dot"></i> Aircraft</span></div>
+          </div>
+          <div class="track-stage">
+            <svg id="track-svg" viewBox="0 0 700 330" role="img" aria-label="Aircraft track relative to home">
+              <defs><pattern id="grid" width="35" height="35" patternUnits="userSpaceOnUse"><path d="M 35 0 L 0 0 0 35" class="grid-line" fill="none"/></pattern><filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+              <rect width="700" height="330" fill="url(#grid)"/>
+              <g class="range-rings" transform="translate(350 165)"><circle r="55"/><circle r="110"/><circle r="155"/><line x1="-175" y1="0" x2="175" y2="0"/><line x1="0" y1="-165" x2="0" y2="165"/></g>
+              <polyline id="track-line" points=""/>
+              <g id="home-marker" transform="translate(350 165)"><circle r="8"/><path d="M-3 1v6h6V1M-5 1l5-5 5 5"/></g>
+              <g id="aircraft-marker" transform="translate(350 165)"><circle r="15" class="aircraft-halo"/><path class="aircraft-shape" d="M0-12 8 10 0 6-8 10Z"/></g>
+              <text class="north-label" x="350" y="20">N</text><text class="scale-label" id="scale-label" x="18" y="308">Range: waiting for position</text>
+            </svg>
+            <div class="track-empty" id="track-empty">Remote ID positions will draw the flight path here</div>
+          </div>
+        </section>
+      </main>
+
+      <section class="welcome-screen" id="welcome-screen" aria-labelledby="welcome-title">
+        <div class="welcome-mark" aria-hidden="true">✦</div>
+        <p>LOCAL GROUND STATION</p>
+        <h2 id="welcome-title">Welcome to<br>AEROLINK</h2>
+        <button id="skip-welcome" type="button">Enter viewer</button>
+      </section>
+
+      <footer>
+        <p><span class="warning-icon">!</span> Secondary monitor only - always fly using the RC 2 display and maintain visual line of sight.</p>
+        <span id="telemetry-endpoint"></span>
+      </footer>
+    </div>
+
+    <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+      <form class="settings-sheet" id="settings-form">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <header class="sheet-header">
+          <button class="sheet-action" id="settings-cancel" type="button">Cancel</button>
+          <div><p class="eyebrow">PERSONALIZE</p><h2 id="settings-title">Dashboard Settings</h2></div>
+          <button class="sheet-action done" type="submit">Done</button>
+        </header>
+
+        <div class="settings-content">
+          <section class="settings-group connection-group" aria-labelledby="connection-heading">
+            <div class="settings-group-title"><h3 id="connection-heading">Connect Camera</h3><p>Use one key per aircraft. Enter the server link and key in separate fields. Keys route video; they are not passwords.</p></div>
+            <label class="form-row stream-key-row"><span>Stream key</span><span class="stream-key-controls"><input id="settings-stream-key" type="text" inputmode="text" maxlength="16" autocomplete="off" spellcheck="false" value="x"><button class="small-primary-button" id="settings-new-key" type="button">Generate</button><button class="quiet-button" id="settings-switch-feed" type="button">Open feed</button></span></label>
+            <div class="settings-stream-link"><span class="field-label">RTMP SERVER LINK</span><div class="settings-stream-url"><code id="settings-rtmp-url">rtmp://laptop-ip</code><button class="small-primary-button" id="settings-copy-url" type="button">Copy</button></div></div>
+            <p class="settings-note">If your app asks for just one address: <code id="settings-full-rtmp-url"></code></p>
+            <div class="settings-stream-link"><span class="field-label">VIEWER LINK</span><code class="viewer-url" id="settings-viewer-url">http://laptop-ip:3000/?stream=x</code></div>
+            <details class="setup-help">
+              <summary><span>i</span> Simple setup guide</summary>
+              <ol>
+                <li>Turn on the aircraft and controller. Connect the streaming device and this laptop to the same network.</li>
+                <li>In DJI Fly, open <strong>Live Streaming</strong> and choose <strong>RTMP</strong>. Use the server link and key above, or the complete address for a single address field.</li>
+                <li>Start streaming. This view automatically changes to your live camera.</li>
+              </ol>
+            </details>
+          </section>
+
+          <section class="settings-group" aria-labelledby="appearance-heading">
+            <div class="settings-group-title"><h3 id="appearance-heading">Appearance</h3><p>Choose how the flight monitor looks on this device.</p></div>
+            <fieldset class="segmented-field"><legend>Color scheme</legend><div class="segmented-control">
+              <label><input type="radio" name="theme" value="system"><span>Auto</span></label>
+                <label><input type="radio" name="theme" value="light"><span>Day</span></label>
+                <label><input type="radio" name="theme" value="dark"><span>Night</span></label>
+            </div></fieldset>
+            <fieldset class="accent-field"><legend>Accent color</legend><div class="accent-options">
+              <label class="accent-choice blue"><input type="radio" name="accent" value="blue"><span>Blue</span></label>
+              <label class="accent-choice indigo"><input type="radio" name="accent" value="indigo"><span>Indigo</span></label>
+              <label class="accent-choice mint"><input type="radio" name="accent" value="mint"><span>Mint</span></label>
+              <label class="accent-choice orange"><input type="radio" name="accent" value="orange"><span>Orange</span></label>
+            </div></fieldset>
+          </section>
+
+          <section class="settings-group" aria-labelledby="identity-heading">
+            <div class="settings-group-title"><h3 id="identity-heading">Aircraft Identity</h3><p>Give this dashboard a recognizable aircraft profile.</p></div>
+            <label class="form-row"><span>Aircraft name</span><input name="aircraftName" type="text" maxlength="40" autocomplete="off" placeholder="Lito X1"></label>
+            <label class="form-row"><span>UAS ID override</span><input name="uasId" type="text" maxlength="64" autocomplete="off" placeholder="Use received ID"></label>
+            <label class="form-row"><span>Operator ID override</span><input name="operatorId" type="text" maxlength="64" autocomplete="off" placeholder="Use received ID"></label>
+            <p class="settings-note">Overrides change labels on this dashboard only. They do not configure or modify the aircraft's Remote ID broadcast.</p>
+          </section>
+
+          <section class="settings-group" aria-labelledby="display-heading">
+            <div class="settings-group-title"><h3 id="display-heading">Flight Display</h3><p>Select units and the details you want visible.</p></div>
+            <fieldset class="segmented-field"><legend>Units</legend><div class="segmented-control">
+              <label><input type="radio" name="units" value="metric"><span>Metric</span></label>
+              <label><input type="radio" name="units" value="aviation"><span>Aviation</span></label>
+            </div></fieldset>
+            <div class="toggle-list">
+              <label class="toggle-row"><span><strong>Flight data overlay</strong><small>Show or hide all telemetry over the camera</small></span><input type="checkbox" name="panelOverlay"><i></i></label>
+              <label class="toggle-row"><span><strong>Flight track</strong><small>Show the home-relative map</small></span><input type="checkbox" name="panelTrack"><i></i></label>
+              <label class="toggle-row"><span><strong>Identity details</strong><small>Show IDs and aircraft position</small></span><input type="checkbox" name="panelIdentity"><i></i></label>
+              <label class="toggle-row"><span><strong>Receiver signal</strong><small>Show receiver RSSI</small></span><input type="checkbox" name="panelSignal"><i></i></label>
+              <label class="toggle-row"><span><strong>Clean streaming output</strong><small>Hide controls for an OBS or vMix browser source</small></span><input type="checkbox" name="rawOutput"><i></i></label>
+            </div>
+            <div class="settings-note clean-output-note" id="clean-output-note" hidden><span>Browser Source link</span><div class="clean-output-link"><code id="clean-output-url"></code><button class="small-primary-button" id="clean-output-copy" type="button">Copy link</button><a class="quiet-button" id="clean-output-open" target="_blank" rel="noopener">Open output</a></div></div>
+          </section>
+
+          <section class="settings-group" aria-labelledby="telemetry-development-heading">
+            <div class="settings-group-title"><h3 id="telemetry-development-heading">Telemetry · In development</h3><p>Live Remote ID needs a compatible receiver and a bridge to this app. Entering an ID changes its label only. Aircraft hardware integration has not been flight-tested.</p></div>
+            <p class="settings-note">Preview simulated flight data for this feed. Enable Flight data overlay or Flight track above to see it.</p>
+            <button class="demo-button" id="demo-button" type="button"><span class="play-icon" aria-hidden="true">&#9654;</span><span id="demo-label">Run telemetry demo</span></button>
+          </section>
+
+          <button class="reset-button" id="reset-settings" type="button">Restore Default Settings</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -4,6 +4,9 @@
 
 **A quiet, local RTMP flight viewer for DJI Fly and other RTMP publishers.**
 
+[Download for Windows](https://github.com/JadenAhYuen/AEROLINK/releases/latest)
+· [Build status](https://github.com/JadenAhYuen/AEROLINK/actions/workflows/release.yml)
+
 > AEROLINK is a secondary monitor, not a flight-control system. Always pilot
 > from the approved DJI controller, maintain visual line of sight, and follow
 > applicable aviation and privacy rules.

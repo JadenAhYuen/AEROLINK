@@ -28,5 +28,10 @@ foreach ($file in @('package.json', 'mediamtx.yml', 'README.md', 'THIRD_PARTY_NO
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 $zipPath = "$releaseRoot.zip"
 Compress-Archive -LiteralPath $releaseRoot -DestinationPath $zipPath -Force
-Get-FileHash -LiteralPath $zipPath -Algorithm SHA256
+$archiveStream = [System.IO.File]::OpenRead($zipPath)
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+try { $checksum = [BitConverter]::ToString($sha256.ComputeHash($archiveStream)).Replace('-', '').ToLowerInvariant() }
+finally { $archiveStream.Dispose(); $sha256.Dispose() }
+Set-Content -LiteralPath "$zipPath.sha256.txt" -Value "$checksum  $([System.IO.Path]::GetFileName($zipPath))" -Encoding ASCII
+Write-Host "SHA256: $checksum"
 Write-Host "Release ready: $zipPath"
